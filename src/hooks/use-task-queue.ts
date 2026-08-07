@@ -41,6 +41,15 @@ class Semaphore {
 
 function buildTasksForGroup(group: ImageGroup, pairingMode: PairingMode): Task[] {
   const { clothingImages: c, modelImages: m } = group;
+  
+  // 自动模式：1张服装图 + 多张模特图 = 多张结果
+  if (c.length === 1 && m.length > 0) {
+    return m.map(model => ({
+      id: generateId(), clothingImg: c[0], modelImg: model,
+      status: 'pending' as const, progress: 0, resultUrl: null, error: null,
+    }));
+  }
+  
   if (pairingMode === 'fixedModel') {
     return c.map(clothing => ({
       id: generateId(), clothingImg: clothing, modelImg: m[0],
@@ -56,7 +65,7 @@ function buildTasksForGroup(group: ImageGroup, pairingMode: PairingMode): Task[]
   return c.map((clothing, i) => ({
     id: generateId(), clothingImg: clothing, modelImg: m[i],
     status: 'pending' as const, progress: 0, resultUrl: null, error: null,
-  }));
+  })).filter(t => t.modelImg); // 过滤掉没有对应模特图的任务
 }
 
 export function useTaskQueue() {

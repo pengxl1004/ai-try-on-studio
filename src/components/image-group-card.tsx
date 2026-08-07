@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, ChevronUp, GripVertical, Trash2, Play, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronUp, GripVertical, Trash2, Play, ChevronRight, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ImageDropzone } from './image-dropzone';
 import type { ImageGroup } from '@/lib/types';
@@ -27,6 +27,8 @@ export function ImageGroupCard({
   onAddImages, onRemoveImage, onClearImages, onReorder, onCrop,
 }: ImageGroupCardProps) {
   const hasImages = group.clothingImages.length > 0 || group.modelImages.length > 0;
+  // 计算将生成的任务数量：1张服装图 × N张模特图
+  const taskCount = group.clothingImages.length > 0 ? group.modelImages.length : 0;
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden transition-shadow hover:shadow-md">
@@ -100,6 +102,7 @@ export function ImageGroupCard({
               images={group.clothingImages}
               title="服装图片"
               groupId={group.id}
+              maxImages={1}
               onAddImages={onAddImages}
               onRemoveImage={onRemoveImage}
               onClearImages={onClearImages}
@@ -119,6 +122,16 @@ export function ImageGroupCard({
               onCrop={onCrop}
             />
           </div>
+          {/* 任务数量预览 */}
+          {taskCount > 0 && (
+            <div className="mt-4 flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-indigo-50 border border-indigo-100">
+              <Layers className="w-4 h-4 text-indigo-500" />
+              <span className="text-sm text-indigo-700 font-medium">
+                将生成 <span className="font-bold">{taskCount}</span> 张AI图片
+              </span>
+              <span className="text-xs text-indigo-400">（1 服装 × {taskCount} 模特）</span>
+            </div>
+          )}
         </div>
       )}
 
