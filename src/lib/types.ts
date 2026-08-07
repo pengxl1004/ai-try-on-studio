@@ -28,11 +28,10 @@ export type PairingMode = 'pair' | 'fixedModel' | 'fixedClothing';
 
 export type SaveMode = 'download' | 'local' | 'server';
 
-export type GenerationMode = 'headOnly' | 'clothingOnly' | 'topOnly' | 'bottomOnly' | 'both' | 'backgroundOnly';
+export type GenerationMode = 'headOnly' | 'topOnly' | 'bottomOnly' | 'both' | 'backgroundOnly';
 
 export const GENERATION_MODE_LABELS: Record<GenerationMode, string> = {
   headOnly: '仅生成头部',
-  clothingOnly: '仅替换衣服',
   topOnly: '仅替换上衣',
   bottomOnly: '仅替换下装',
   both: '头部和衣服一起替换',
@@ -41,7 +40,6 @@ export const GENERATION_MODE_LABELS: Record<GenerationMode, string> = {
 
 export const GENERATION_MODE_PROMPTS: Record<GenerationMode, string> = {
   headOnly: '仅替换模特的头部/面部，保持服装和背景不变。注意光影匹配：新生成的头部必须与模特身体的光照方向、阴影强度、色温完全一致，确保自然过渡。',
-  clothingOnly: '用图1的服装替换图2模特身上的服装，保持图2的其他元素不变。关键要求：1) 服装的光影必须根据模特身体的光照重新渲染，包括高光、阴影、环境光反射；2) 服装褶皱和材质质感要真实；3) 服装边缘与模特身体自然融合，无生硬边界。',
   topOnly: '仅替换模特的上衣/上装，保持下装、头部和背景不变。关键要求：1) 上衣的光影必须根据模特身体的光照重新渲染；2) 上衣与下装、颈部的衔接处要自然融合；3) 服装褶皱和材质质感要真实；4) 光照方向、阴影强度、色温与模特一致。',
   bottomOnly: '仅替换模特的下装/裤子/裙子，保持上衣、头部和背景不变。关键要求：1) 下装的光影必须根据模特身体的光照重新渲染；2) 下装与上衣、腿部的衔接处要自然融合；3) 服装褶皱和材质质感要真实；4) 光照方向、阴影强度、色温与模特一致。',
   both: '用图1的服装替换图2模特身上的服装，同时优化模特的头部/面部，保持背景不变。关键要求：1) 服装光影根据模特光照重新渲染；2) 头部光影与身体一致；3) 整体色调、色温、光照方向统一；4) 所有元素自然融合。',
@@ -89,7 +87,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   imageSize: '',
   aspectRatio: '',
   pairingMode: 'pair',
-  generationMode: 'clothingOnly',
+  generationMode: 'topOnly',
   autoSave: false,
   saveMode: 'download',
   serverUrl: '',
