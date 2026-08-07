@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { AppSettings } from '@/lib/types';
 import { DEFAULT_SETTINGS } from '@/lib/types';
 
 const STORAGE_KEY = 'tryon_settings';
 
 function loadSettings(): AppSettings {
-  if (typeof window === 'undefined') return DEFAULT_SETTINGS;
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -23,7 +22,15 @@ function loadSettings(): AppSettings {
 }
 
 export function useSettings() {
-  const [settings, setSettingsRaw] = useState<AppSettings>(loadSettings);
+  const [settings, setSettingsRaw] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const initialized = useRef(false);
+
+  useEffect(() => {
+    if (!initialized.current) {
+      initialized.current = true;
+      setSettingsRaw(loadSettings());
+    }
+  }, []);
 
   const setSettings = useCallback((updater: AppSettings | ((prev: AppSettings) => AppSettings)) => {
     setSettingsRaw(prev => {
@@ -33,9 +40,11 @@ export function useSettings() {
   }, []);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-    } catch { /* ignore */ }
+    if (initialized.current) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+      } catch { /* ignore */ }
+    }
   }, [settings]);
 
   return [settings, setSettings] as const;
