@@ -11,8 +11,8 @@ import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
-import type { AppSettings, SaveMode } from '@/lib/types';
-import { MAX_CONCURRENCY } from '@/lib/types';
+import type { AppSettings, SaveMode, GenerationMode } from '@/lib/types';
+import { MAX_CONCURRENCY, GENERATION_MODE_LABELS, GENERATION_MODE_PROMPTS } from '@/lib/types';
 import { testServerConnection } from '@/lib/api';
 
 interface SettingsDialogProps {
@@ -83,12 +83,37 @@ export function SettingsDialog({ open, onOpenChange, settings, onSettingsChange 
           </div>
 
           <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wider">生成模式</Label>
+            <Select
+              value={settings.generationMode}
+              onValueChange={(v: GenerationMode) => update({ generationMode: v })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.entries(GENERATION_MODE_LABELS) as [GenerationMode, string][]).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-slate-400">
+              当前提示词: {GENERATION_MODE_PROMPTS[settings.generationMode]}
+            </p>
+          </div>
+
+          <div className="space-y-2">
             <Label className="text-xs font-semibold uppercase tracking-wider">系统提示词</Label>
             <Textarea
               value={settings.prompt}
               onChange={e => update({ prompt: e.target.value })}
               className="h-24 resize-none"
             />
+            <p className="text-xs text-slate-400">
+              提示：实际调用时使用生成模式对应的提示词，此处仅作备用
+            </p>
           </div>
 
           <div className="space-y-2">

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Settings, Zap, Layers, Play, Square, Plus, GalleryHorizontal } from 'lucide-react';
+import { Settings, Zap, Layers, Play, Square, Plus, GalleryHorizontal, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ImageGroupCard } from '@/components/image-group-card';
 import { TaskQueue } from '@/components/task-queue';
@@ -11,7 +11,8 @@ import { PreviewModal } from '@/components/preview-modal';
 import { useSettings } from '@/hooks/use-settings';
 import { useImageGroups } from '@/hooks/use-image-groups';
 import { useTaskQueue } from '@/hooks/use-task-queue';
-import type { GalleryItem, Task } from '@/lib/types';
+import type { GalleryItem, Task, GenerationMode } from '@/lib/types';
+import { GENERATION_MODE_LABELS } from '@/lib/types';
 import { generateId, downloadImagesSequentially } from '@/lib/utils';
 
 type ActiveTab = 'workspace' | 'gallery';
@@ -174,14 +175,32 @@ export default function HomePage() {
                 </button>
               </nav>
             </div>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setShowSettings(true)}
-              className="border-slate-200 hover:bg-slate-50"
-            >
-              <Settings className="w-5 h-5 text-slate-600" />
-            </Button>
+            <div className="flex items-center gap-3">
+              {/* Quick Mode Selector */}
+              <div className="hidden sm:flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+                {(Object.entries(GENERATION_MODE_LABELS) as [GenerationMode, string][]).map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    onClick={() => setSettings(prev => ({ ...prev, generationMode: mode }))}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                      settings.generationMode === mode
+                        ? 'bg-white text-indigo-600 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setShowSettings(true)}
+                className="border-slate-200 hover:bg-slate-50"
+              >
+                <Settings className="w-5 h-5 text-slate-600" />
+              </Button>
+            </div>
           </div>
         </div>
       </header>

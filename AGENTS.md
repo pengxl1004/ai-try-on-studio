@@ -87,6 +87,7 @@ AI 虚拟试衣批量处理工具（BOOM AI Try-on Studio），参考原始 HTML
 ### 核心功能
 - **图片分组管理**：上传服装图和模特图，支持拖拽排序、批量操作
 - **多种配对模式**：1:1 配对、固定模特、固定服装
+- **生成模式选择**：仅生成头部、仅替换衣服、头部和衣服一起替换、仅换背景
 - **批量 AI 处理**：并发调用 OpenAI 兼容 API 生成试穿效果
 - **任务队列**：实时进度追踪、状态管理（pending/processing/completed/failed）
 - **结果画廊**：本地持久化（localStorage）、批量下载、预览
@@ -100,7 +101,16 @@ AI 虚拟试衣批量处理工具（BOOM AI Try-on Studio），参考原始 HTML
 
 ### 关键入口
 - 主页面：`src/app/page.tsx`
-- 类型定义：`src/lib/types.ts`
-- API 调用：`src/lib/api.ts`
+- 类型定义：`src/lib/types.ts`（含 `GenerationMode` 和 `GENERATION_MODE_PROMPTS`）
+- API 调用：`src/lib/api.ts`（根据 `generationMode` 选择对应提示词）
 - 设置管理：`src/hooks/use-settings.ts`
 - 任务队列：`src/hooks/use-task-queue.ts`
+
+### 生成模式说明
+应用支持 4 种生成模式，在页面顶部快速切换或在设置面板中选择：
+| 模式 | 说明 | 对应提示词 |
+|------|------|------------|
+| `headOnly` | 仅生成头部 | 仅替换模特的头部/面部，保持服装和背景不变 |
+| `clothingOnly` | 仅替换衣服 | 用图1的服装替换图2模特身上的服装，保持图2的其他元素不变 |
+| `both` | 头部和衣服一起替换 | 用图1的服装替换图2模特身上的服装，同时优化模特的头部/面部 |
+| `backgroundOnly` | 仅换背景 | 保持模特和服装不变，仅替换背景环境 |

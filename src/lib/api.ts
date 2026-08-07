@@ -1,4 +1,5 @@
 import type { AppSettings } from './types';
+import { GENERATION_MODE_PROMPTS } from './types';
 import { convertToJpgDataUrl, deepSearchForUrl, getBlobFromUrl } from './utils';
 
 export async function callTryonAPI(
@@ -16,12 +17,14 @@ export async function callTryonAPI(
   const clothingBlob = await fetch(clothingDataUrl).then(r => r.blob());
   const modelBlob = await fetch(modelDataUrl).then(r => r.blob());
 
+  const effectivePrompt = GENERATION_MODE_PROMPTS[settings.generationMode] || settings.prompt;
+
   const buildFormData = (imageField: string) => {
     const fd = new FormData();
     fd.append(imageField, clothingBlob, 'clothing.jpg');
     fd.append(imageField, modelBlob, 'model.jpg');
     fd.append('model', settings.model || 'nano-banana-2');
-    fd.append('prompt', settings.prompt);
+    fd.append('prompt', effectivePrompt);
     if (settings.responseFormat) fd.append('response_format', settings.responseFormat);
     if (settings.aspectRatio) fd.append('aspect_ratio', settings.aspectRatio);
     if (settings.imageSize) fd.append('image_size', settings.imageSize);
