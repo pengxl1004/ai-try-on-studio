@@ -19,10 +19,19 @@ export async function callTryonAPI(
 
   const effectivePrompt = GENERATION_MODE_PROMPTS[settings.generationMode] || settings.prompt;
 
+  // 根据生成模式调整图片顺序
+  // 大多数模式：第一张是服装图，第二张是模特图
+  // backgroundOnly 模式：第一张是模特图，第二张是背景图（这里用 modelBlob 作为背景图）
+  const isBackgroundMode = settings.generationMode === 'backgroundOnly';
+  const firstImage = isBackgroundMode ? modelBlob : clothingBlob;
+  const secondImage = isBackgroundMode ? clothingBlob : modelBlob;
+  const firstImageName = isBackgroundMode ? 'model.jpg' : 'clothing.jpg';
+  const secondImageName = isBackgroundMode ? 'background.jpg' : 'model.jpg';
+
   const buildFormData = (imageField: string) => {
     const fd = new FormData();
-    fd.append(imageField, clothingBlob, 'clothing.jpg');
-    fd.append(imageField, modelBlob, 'model.jpg');
+    fd.append(imageField, firstImage, firstImageName);
+    fd.append(imageField, secondImage, secondImageName);
     fd.append('model', settings.model || 'nano-banana-2');
     fd.append('prompt', effectivePrompt);
     if (settings.responseFormat) fd.append('response_format', settings.responseFormat);
