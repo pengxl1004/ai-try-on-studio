@@ -19,10 +19,26 @@
 │   └── start.sh            # 生产环境启动脚本
 ├── src/
 │   ├── app/                # 页面路由与布局
-│   ├── components/ui/      # Shadcn UI 组件库
-│   ├── hooks/              # 自定义 Hooks
-│   ├── lib/                # 工具库
-│   │   └── utils.ts        # 通用工具函数 (cn)
+│   │   ├── layout.tsx      # 根布局（字体：Outfit + Inter）
+│   │   ├── page.tsx        # 主页面（AI 试衣工作台）
+│   │   └── globals.css     # 全局样式（Tailwind + 自定义变量）
+│   ├── components/
+│   │   ├── ui/             # Shadcn UI 组件库
+│   │   ├── image-dropzone.tsx    # 图片拖拽上传区域
+│   │   ├── image-group-card.tsx  # 图片分组卡片
+│   │   ├── task-card.tsx         # 任务卡片
+│   │   ├── task-queue.tsx        # 任务队列面板
+│   │   ├── settings-dialog.tsx   # 设置弹窗
+│   │   ├── gallery.tsx           # 结果画廊
+│   │   └── preview-modal.tsx     # 图片预览弹窗
+│   ├── hooks/
+│   │   ├── use-settings.ts       # 设置管理（localStorage 持久化）
+│   │   ├── use-image-groups.ts   # 图片分组管理
+│   │   └── use-task-queue.ts     # 任务队列与并发控制
+│   ├── lib/
+│   │   ├── types.ts        # 类型定义（Settings, ImageGroup, Task, GalleryItem）
+│   │   ├── utils.ts        # 工具函数（cn, generateId, downloadImagesSequentially）
+│   │   └── api.ts          # AI API 调用（OpenAI 兼容格式）
 │   └── server.ts           # 自定义服务端入口
 ├── next.config.ts          # Next.js 配置
 ├── package.json            # 项目依赖管理
@@ -63,3 +79,28 @@
 
 - 模板默认预装核心组件库 `shadcn/ui`，位于`src/components/ui/`目录下
 - Next.js 项目**必须默认**采用 shadcn/ui 组件、风格和规范，**除非用户指定用其他的组件和规范。**
+
+## 项目概述
+
+AI 虚拟试衣批量处理工具（BOOM AI Try-on Studio），参考原始 HTML 版本重构为 Next.js 全栈应用。
+
+### 核心功能
+- **图片分组管理**：上传服装图和模特图，支持拖拽排序、批量操作
+- **多种配对模式**：1:1 配对、固定模特、固定服装
+- **批量 AI 处理**：并发调用 OpenAI 兼容 API 生成试穿效果
+- **任务队列**：实时进度追踪、状态管理（pending/processing/completed/failed）
+- **结果画廊**：本地持久化（localStorage）、批量下载、预览
+- **设置面板**：API 配置、并发控制、提示词、自动保存
+
+### 技术要点
+- 所有数据存储在浏览器 localStorage，无需后端数据库
+- API 调用直接在前端发起（OpenAI 兼容格式）
+- 图片以 base64 格式存储和传输
+- 使用 Outfit（标题）+ Inter（正文）字体组合
+
+### 关键入口
+- 主页面：`src/app/page.tsx`
+- 类型定义：`src/lib/types.ts`
+- API 调用：`src/lib/api.ts`
+- 设置管理：`src/hooks/use-settings.ts`
+- 任务队列：`src/hooks/use-task-queue.ts`
