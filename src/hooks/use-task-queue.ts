@@ -62,10 +62,12 @@ function buildTasksForGroup(group: ImageGroup, pairingMode: PairingMode): Task[]
       status: 'pending' as const, progress: 0, resultUrl: null, error: null,
     }));
   }
-  return c.map((clothing, i) => ({
-    id: generateId(), clothingImg: clothing, modelImg: m[i],
+  // 1:1 配对模式：自动取最小值进行配对
+  const pairCount = Math.min(c.length, m.length);
+  return Array.from({ length: pairCount }, (_, i) => ({
+    id: generateId(), clothingImg: c[i], modelImg: m[i],
     status: 'pending' as const, progress: 0, resultUrl: null, error: null,
-  })).filter(t => t.modelImg); // 过滤掉没有对应模特图的任务
+  }));
 }
 
 export function useTaskQueue() {
@@ -96,7 +98,6 @@ export function useTaskQueue() {
       const c = g.clothingImages.length;
       const m = g.modelImages.length;
       if (c === 0 || m === 0) errors.push(`${g.name}: 请先添加服装和模特图片`);
-      else if (settings.pairingMode === 'pair' && c !== m) errors.push(`${g.name}: 1:1 模式下服装和模特图片数量必须相同`);
       else if (settings.pairingMode === 'fixedModel' && m < 1) errors.push(`${g.name}: 固定模特模式需要至少 1 张模特图`);
       else if (settings.pairingMode === 'fixedClothing' && c < 1) errors.push(`${g.name}: 固定服装模式需要至少 1 张服装图`);
     });
