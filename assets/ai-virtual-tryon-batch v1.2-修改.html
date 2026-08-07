@@ -1,0 +1,2310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BOOM AI Virtual Try-on v1.2 - Soft Minimal</title>
+    <!--Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bg: '#f8fafc',
+                        text: '#334155',
+                        primary: { 50: '#f0f9ff', 100: '#e0f2fe', 200: '#bae6fd', 300: '#7dd3fc', 400: '#38bdf8', 500: '#0ea5e9', 600: '#0284c7', 700: '#0369a1' },
+                        secondary: { 50: '#fdf2f8', 100: '#fce7f3', 200: '#fbcfe8', 300: '#f9a8d4', 400: '#f472b6', 500: '#ec4899', 600: '#db2777' },
+                        zinc: { 50: '#f8fafc', 100: '#f1f5f9', 200: '#e2e8f0', 300: '#cbd5e1', 400: '#94a3b8', 500: '#64748b', 600: '#475569', 700: '#334155', 800: '#1e293b', 900: '#0f172a' }
+                    },
+                    borderRadius: { '3xl': '2rem', '4xl': '3rem' },
+                    fontFamily: { sans: ['Outfit', 'Inter', 'sans-serif'] },
+                }
+            }
+        }
+    </script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.29.7/babel.min.js"></script>
+    <style>
+        body {
+            font - family: 'Outfit', sans-serif;
+            background-color: #f8fafc;
+            color: #334155;
+            overflow-x: hidden;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 99px;
+            border: 2px solid #f8fafc;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        .soft-card {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            border-radius: 1.5rem;
+            box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.05), 0 0 20px rgba(0, 0, 0, 0.02);
+            transition: all 0.3s ease;
+        }
+
+        .soft-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.08);
+        }
+
+        .soft-btn {
+            border - radius: 99px;
+            font-weight: 500;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .soft-btn:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 10px 25px -5px rgba(14, 165, 233, 0.25);
+        }
+
+        .soft-btn:active {
+            transform: translateY(0) scale(0.98);
+        }
+
+        .soft-input {
+            background: #f1f5f9;
+            border: 1px solid transparent;
+            border-radius: 1rem;
+            transition: all 0.2s;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .soft-input:focus {
+            background: #fff;
+            border-color: #0ea5e9;
+            box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.1);
+            outline: none;
+        }
+
+        .drop-zone {
+            background: #fff;
+            border: 2px dashed #cbd5e1;
+            border-radius: 1.5rem;
+            transition: all 0.3s;
+        }
+
+        .drop-zone:hover {
+            border - color: #0ea5e9;
+            background: #f0f9ff;
+            transform: scale(1.01);
+        }
+
+        .drop-zone.dragover {
+            border - color: #0ea5e9;
+            background: #e0f2fe;
+            transform: scale(1.02);
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        .animate-slide-up {
+            animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useRef, useEffect, useCallback, useMemo, useReducer } = React;
+
+        // ========== 常量定义 ==========
+        const DEFAULT_BASE_URL = 'https://ai.comfly.chat';
+        const DEFAULT_CONCURRENCY = 5;
+        const MAX_CONCURRENCY = 10;
+        const JPEG_QUALITY = 0.95;
+        const DOWNLOAD_DELAY_MS = 300;
+
+        const DEFAULT_SETTINGS = {
+            baseUrl: DEFAULT_BASE_URL,
+            concurrency: DEFAULT_CONCURRENCY,
+            prompt: '用图1的服装替换图2模特身上的服装，保持图2的其他元素不变',
+            model: 'nano-banana-2',
+            responseFormat: 'url',
+            imageSize: '',
+            aspectRatio: '',
+            apiKey: '',
+            serverUrl: '',
+            subfolder: '',
+            autoSave: false,
+            saveMode: 'download', // download | local | server
+            autoDownload: true,
+            previewCompress: false,
+            previewMaxSize: 768,
+            previewQuality: 0.7,
+            pairingMode: 'pair', // pair | fixedModel | fixedClothing
+        };
+
+        // ========== 图标SVG路径 ==========
+        const iconPaths = {
+            settings: 'M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z',
+            upload: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M17 8l-5-5-5 5 M12 3v12',
+            x: 'M18 6L6 18 M6 6l12 12',
+            plus: 'M12 5v14 M5 12h14',
+            play: 'M5 3l14 9-14 9V3z',
+            square: 'M3 3h18v18H3z',
+            download: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3',
+            'refresh-cw': 'M23 4v6h-6 M1 20v-6h6 M3.51 9a9 9 0 0 1 14.85-3.36L23 10 M1 14l4.64 4.36A9 9 0 0 0 20.49 15',
+            crop: 'M6.13 1L6 16a2 2 0 0 0 2 2h15 M1 6.13L16 6a2 2 0 0 1 2 2v15',
+            zap: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
+            layers: 'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5',
+            'chevron-right': 'M9 18l6-6-6-6',
+            'chevron-down': 'M6 9l6 6 6-6',
+            'arrow-up': 'M12 19V5M5 12l7-7 7 7',
+            'arrow-down': 'M12 5v14M19 12l-7 7-7-7',
+            'trash-2': 'M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6',
+            'alert-triangle': 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01',
+            info: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z M12 8v4 M12 16h.01',
+            loader: 'M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83',
+            'git-merge': 'M18 6a3 3 0 1 0-6 0v6a3 3 0 0 1-3 3H5a3 3 0 1 0 0 6 3 3 0 0 0 0-6h2c2.8 0 5-2.2 5-5V6a3 3 0 0 0 5 0z',
+            user: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+            shirt: 'M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z',
+            grid: 'M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z',
+            eye: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 5a7 7 0 1 0 0 14 7 7 0 0 0 0-14z M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z',
+            image: 'M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM8.5 13.5l2.5 3 3.5-4.5 4.5 6H5l3.5-4.5z',
+            check: 'M20 6L9 17l-5-5',
+            'alert-circle': 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z M12 8v4 M12 16h.01',
+            search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.35-4.35',
+            heart: 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z',
+            message: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
+        };
+
+        const Icon = React.memo(({ name, size = 24, className = "" }) => {
+            const path = iconPaths[name];
+            if (!path) return null;
+            return React.createElement('svg', {
+                xmlns: "http://www.w3.org/2000/svg",
+                width: size,
+                height: size,
+                viewBox: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                strokeWidth: 2,
+                strokeLinecap: "round",
+                strokeLinejoin: "round",
+                className,
+            }, React.createElement('path', { d: path }));
+        });
+
+        // ========== 工具函数 ==========
+        const generateId = () => `${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+
+        const sanitizeSubfolder = (folder) => {
+            if (!folder) return '';
+            return folder.replace(/\.\./g, '').replace(/^\/+/, '').replace(/[<>:"|?*]/g, '').trim();
+        };
+
+        const getBlobFromUrl = async (url) => {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Failed to fetch blob: ${response.status}`);
+            return response.blob();
+        };
+
+        const convertToJpgDataUrl = (imgUrl) => {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => {
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.naturalWidth;
+                        canvas.height = img.naturalHeight;
+                        const ctx = canvas.getContext('2d');
+                        ctx.fillStyle = '#FFFFFF';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.drawImage(img, 0, 0);
+                        resolve(canvas.toDataURL('image/jpeg', JPEG_QUALITY));
+                    } catch (e) { resolve(null); }
+                };
+                img.onerror = () => resolve(null);
+                img.src = imgUrl;
+            });
+        };
+
+        const readFileAsDataURL = (file) => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(file);
+        });
+
+        const blobToDataURL = (blob) => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(blob);
+        });
+
+        const compressImageForPreview = (imgUrl, maxSize = 768, quality = 0.7) => {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => {
+                    try {
+                        const maxEdge = Math.max(img.naturalWidth, img.naturalHeight);
+                        const scale = Math.min(1, maxSize / maxEdge);
+                        const width = Math.max(1, Math.round(img.naturalWidth * scale));
+                        const height = Math.max(1, Math.round(img.naturalHeight * scale));
+                        const canvas = document.createElement('canvas');
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+                        resolve(canvas.toDataURL('image/jpeg', quality));
+                    } catch (e) {
+                        resolve(null);
+                    }
+                };
+                img.onerror = () => resolve(null);
+                img.src = imgUrl;
+            });
+        };
+
+        const openHandleDB = () => new Promise((resolve, reject) => {
+            const request = indexedDB.open('tryon_handles_db', 2);
+            request.onupgradeneeded = () => {
+                const db = request.result;
+                if (!db.objectStoreNames.contains('handles')) {
+                    db.createObjectStore('handles');
+                }
+                if (!db.objectStoreNames.contains('images')) {
+                    db.createObjectStore('images');
+                }
+            };
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+
+        const saveHandleToDB = async (key, handle) => {
+            try {
+                const db = await openHandleDB();
+                const tx = db.transaction('handles', 'readwrite');
+                tx.objectStore('handles').put(handle, key);
+                return new Promise(resolve => {
+                    tx.oncomplete = () => resolve(true);
+                    tx.onerror = () => resolve(false);
+                });
+            } catch (e) { return false; }
+        };
+
+        const loadHandleFromDB = async (key) => {
+            try {
+                const db = await openHandleDB();
+                const tx = db.transaction('handles', 'readonly');
+                const req = tx.objectStore('handles').get(key);
+                return new Promise(resolve => {
+                    req.onsuccess = () => resolve(req.result || null);
+                    req.onerror = () => resolve(null);
+                });
+            } catch (e) { return null; }
+        };
+
+        const deleteHandleFromDB = async (key) => {
+            try {
+                const db = await openHandleDB();
+                const tx = db.transaction('handles', 'readwrite');
+                tx.objectStore('handles').delete(key);
+                return new Promise(resolve => {
+                    tx.oncomplete = () => resolve(true);
+                    tx.onerror = () => resolve(false);
+                });
+            } catch (e) { return false; }
+        };
+
+        const saveImageToDB = async (key, dataUrl) => {
+            try {
+                const db = await openHandleDB();
+                const tx = db.transaction('images', 'readwrite');
+                tx.objectStore('images').put(dataUrl, key);
+                return new Promise(resolve => {
+                    tx.oncomplete = () => resolve(true);
+                    tx.onerror = () => resolve(false);
+                });
+            } catch (e) { return false; }
+        };
+
+        const loadImageFromDB = async (key) => {
+            try {
+                const db = await openHandleDB();
+                const tx = db.transaction('images', 'readonly');
+                const req = tx.objectStore('images').get(key);
+                return new Promise(resolve => {
+                    req.onsuccess = () => resolve(req.result || null);
+                    req.onerror = () => resolve(null);
+                });
+            } catch (e) { return null; }
+        };
+
+        const deleteImageFromDB = async (key) => {
+            try {
+                const db = await openHandleDB();
+                const tx = db.transaction('images', 'readwrite');
+                tx.objectStore('images').delete(key);
+                return new Promise(resolve => {
+                    tx.oncomplete = () => resolve(true);
+                    tx.onerror = () => resolve(false);
+                });
+            } catch (e) { return false; }
+        };
+
+        const saveGalleryMeta = (items) => {
+            try {
+                localStorage.setItem('tryon_gallery', JSON.stringify(items.map(i => ({
+                    id: i.id,
+                    name: i.name,
+                    createdAt: i.createdAt,
+                    dbKey: i.dbKey,
+                    clothingName: i.clothingName,
+                    modelName: i.modelName,
+                    clothingDbKey: i.clothingDbKey,
+                    modelDbKey: i.modelDbKey,
+                }))));
+            } catch (e) { /* ignore */ }
+        };
+
+        const deepSearchForUrl = (obj, depth = 0, visited = new WeakSet()) => {
+            if (depth > 5 || !obj || typeof obj !== 'object') return null;
+            if (visited.has(obj)) return null;
+            visited.add(obj);
+            const urlFields = ['url', 'image_url', 'imageUrl', 'image', 'src'];
+            for (const field of urlFields) {
+                if (obj[field] && typeof obj[field] === 'string' && obj[field].startsWith('http')) {
+                    return obj[field];
+                }
+            }
+            if (Array.isArray(obj) && obj.length > 0) {
+                const result = deepSearchForUrl(obj[0], depth + 1, visited);
+                if (result) return result;
+            }
+            for (const key in obj) {
+                if (obj.hasOwnProperty(key) && !urlFields.includes(key)) {
+                    const result = deepSearchForUrl(obj[key], depth + 1, visited);
+                    if (result) return result;
+                }
+            }
+            return null;
+        };
+
+        // ========== 信号量类 ==========
+        class Semaphore {
+            constructor(max) {
+                this.max = max;
+                this.count = 0;
+                this.queue = [];
+            }
+            acquire() {
+                return new Promise(resolve => {
+                    if (this.count < this.max) { this.count++; resolve(); }
+                    else { this.queue.push(resolve); }
+                });
+            }
+            release() {
+                this.count--;
+                if (this.queue.length > 0) { this.count++; this.queue.shift()(); }
+            }
+        }
+
+        // ========== Task Reducer ==========
+        const taskReducer = (state, action) => {
+            switch (action.type) {
+                case 'SET_TASKS': return action.tasks;
+                case 'UPDATE_TASK': return state.map(t => t.id === action.id ? { ...t, ...action.updates } : t);
+                case 'CLEAR_TASKS': return [];
+                default: return state;
+            }
+        };
+
+        // 将这些组件移到外部，避免每次渲染时重新创建导致输入框失焦
+        const SettingsInputGroup = ({ label, children }) => (
+            <div className="space-y-1.5">
+                <label className="text-xs font-bold text-zinc-800  tracking-wider ml-1">{label}</label>
+                {children}
+            </div>
+        );
+
+        const SettingsStyledInput = (props) => (
+            <input
+                {...props}
+                className="w-full soft-input px-3 py-2.5 text-zinc-800 text-sm transition-all placeholder-zinc-400 rounded-none focus:bg-yellow-50"
+            />
+        );
+
+        const SettingsPanel = React.memo(({
+            settings,
+            setSettings,
+            onClose,
+            testServerConnection,
+            localDirHandle,
+            setLocalDirHandle,
+            localDirPermission,
+            ensureLocalDirPermission,
+        }) => {
+            return (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
+                    <div className="soft-card bg-white p-6 w-full max-w-md max-h-[85vh] overflow-y-auto scrollbar-thin animate-slide-up" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center mb-6 sticky top-0 bg-white border-b border-zinc-200 -mx-6 px-6 py-4 z-10">
+                            <h3 className="text-xl font-bold text-zinc-800  tracking-tight">System Settings</h3>
+                            <button onClick={onClose} className="p-2 border border-zinc-200 hover:bg-zinc-800 hover:text-white transition-colors">
+                                <Icon name="x" size={20} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-6">
+                            <SettingsInputGroup label="API Base URL">
+                                <SettingsStyledInput
+                                    type="text"
+                                    value={settings.baseUrl}
+                                    onChange={e => setSettings(s => ({ ...s, baseUrl: e.target.value }))}
+                                />
+                            </SettingsInputGroup>
+
+                            <SettingsInputGroup label="API Key">
+                                <SettingsStyledInput
+                                    type="password"
+                                    value={settings.apiKey}
+                                    onChange={e => setSettings(s => ({ ...s, apiKey: e.target.value }))}
+                                    placeholder="Enter your API Key"
+                                />
+                            </SettingsInputGroup>
+
+                            <SettingsInputGroup label={`Concurrency Limit (${settings.concurrency})`}>
+                                <input
+                                    type="range"
+                                    min="1"
+                                    max={MAX_CONCURRENCY}
+                                    value={settings.concurrency}
+                                    onChange={e => setSettings(s => ({ ...s, concurrency: parseInt(e.target.value) }))}
+                                    className="w-full h-4 bg-white border border-zinc-200 rounded-none appearance-none cursor-pointer accent-black"
+                                />
+                                <div className="flex justify-between text-xs font-bold text-zinc-800 px-1">
+                                    <span>1</span>
+                                    <span>{MAX_CONCURRENCY}</span>
+                                </div>
+                            </SettingsInputGroup>
+
+                            <SettingsInputGroup label="System Prompt">
+                                <textarea
+                                    value={settings.prompt}
+                                    onChange={e => setSettings(s => ({ ...s, prompt: e.target.value }))}
+                                    className="w-full soft-input px-3 py-2 text-zinc-800 text-sm transition-all h-24 resize-none placeholder-zinc-400 leading-relaxed rounded-none focus:bg-yellow-50"
+                                />
+                            </SettingsInputGroup>
+
+                            <SettingsInputGroup label="Model ID">
+                                <SettingsStyledInput
+                                    type="text"
+                                    value={settings.model}
+                                    onChange={e => setSettings(s => ({ ...s, model: e.target.value }))}
+                                    placeholder="nano-banana"
+                                />
+                            </SettingsInputGroup>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <SettingsInputGroup label="Output Size">
+                                    <SettingsStyledInput
+                                        type="text"
+                                        value={settings.imageSize}
+                                        onChange={e => setSettings(s => ({ ...s, imageSize: e.target.value }))}
+                                        placeholder="e.g. 1024x1024"
+                                    />
+                                </SettingsInputGroup>
+                                <SettingsInputGroup label="Aspect Ratio">
+                                    <SettingsStyledInput
+                                        type="text"
+                                        value={settings.aspectRatio}
+                                        onChange={e => setSettings(s => ({ ...s, aspectRatio: e.target.value }))}
+                                        placeholder="e.g. 3:4"
+                                    />
+                                </SettingsInputGroup>
+                            </div>
+
+                            <div className="p-4 bg-white border border-zinc-200 space-y-4 shadow-sm">
+                                <label className="flex items-center gap-3 cursor-pointer group">
+                                    <div className="relative">
+                                        <input type="checkbox" checked={settings.previewCompress}
+                                            onChange={e => setSettings(s => ({ ...s, previewCompress: e.target.checked }))}
+                                            className="sr-only peer" />
+                                        <div className="w-10 h-6 bg-white border border-zinc-200 peer-checked:bg-primary-500 transition-colors after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-black after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-4"></div>
+                                    </div>
+                                    <span className="text-sm font-bold text-zinc-800 ">Client-side Compression</span>
+                                </label>
+
+                                {settings.previewCompress && (
+                                    <div className="grid grid-cols-2 gap-3 pl-2 animate-fade-in">
+                                        <SettingsStyledInput
+                                            type="number"
+                                            min="256" max="2048"
+                                            value={settings.previewMaxSize}
+                                            onChange={e => setSettings(s => ({ ...s, previewMaxSize: e.target.value }))}
+                                            placeholder="Max Size (px)"
+                                        />
+                                        <SettingsStyledInput
+                                            type="number"
+                                            step="0.1" min="0.1" max="1"
+                                            value={settings.previewQuality}
+                                            onChange={e => setSettings(s => ({ ...s, previewQuality: e.target.value }))}
+                                            placeholder="Quality (0-1)"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="p-4 bg-white border border-zinc-200 space-y-4 shadow-sm">
+                                <label className="flex items-center gap-3 cursor-pointer group">
+                                    <div className="relative">
+                                        <input type="checkbox" checked={settings.autoSave}
+                                            onChange={e => setSettings(s => ({ ...s, autoSave: e.target.checked }))}
+                                            className="sr-only peer" />
+                                        <div className="w-10 h-6 bg-white border border-zinc-200 peer-checked:bg-secondary-500 transition-colors after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-black after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-4"></div>
+                                    </div>
+                                    <span className="text-sm font-bold text-zinc-800 ">Auto Save Results</span>
+                                </label>
+
+                                {settings.autoSave && (
+                                    <div className="space-y-3 animate-fade-in pl-1">
+                                        <div className="flex bg-white border border-zinc-200 p-1 gap-1">
+                                            {['download', 'local', 'server'].map(mode => (
+                                                <button
+                                                    key={mode}
+                                                    onClick={() => setSettings(s => ({ ...s, saveMode: mode }))}
+                                                    className={`flex-1 py-1.5 text-xs font-bold  transition-all ${settings.saveMode === mode
+                                                        ? 'bg-black text-white'
+                                                        : 'text-zinc-800 hover:bg-zinc-100'
+                                                        }`}
+                                                >
+                                                    {{ download: 'Browser DL', local: 'Local Dir', server: 'Server API' }[mode]}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        {settings.saveMode === 'local' && (
+                                            <div className="space-y-2">
+                                                <button
+                                                    onClick={async () => {
+                                                        try {
+                                                            if (!window.showDirectoryPicker || !window.isSecureContext) {
+                                                                alert('Context not secure or API not supported');
+                                                                return;
+                                                            }
+                                                            const handle = await window.showDirectoryPicker();
+                                                            setLocalDirHandle(handle);
+                                                        } catch (e) { console.error(e) }
+                                                    }}
+                                                    className="w-full bg-white hover:bg-yellow-50 border border-zinc-200 px-3 py-2 text-sm font-bold transition-colors text-left flex items-center justify-between group shadow-sm active:shadow-none active:translate-x-[2px] active:translate-y-[2px]"
+                                                >
+                                                    <span className="truncate group-hover:underline">
+                                                        {localDirHandle ? localDirHandle.name : 'Select Output Folder...'}
+                                                    </span>
+                                                    <Icon name="upload" size={14} />
+                                                </button>
+                                                {localDirHandle && localDirPermission !== 'granted' && (
+                                                    <button onClick={ensureLocalDirPermission} className="text-xs font-bold text-primary-600 hover:text-primary-500 underline bg-white border border-zinc-200 px-2 py-1">
+                                                        Grant Write Permission
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {settings.saveMode === 'server' && (
+                                            <div className="space-y-2">
+                                                <SettingsStyledInput
+                                                    value={settings.serverUrl}
+                                                    onChange={e => setSettings(s => ({ ...s, serverUrl: e.target.value }))}
+                                                    placeholder="Server URL (e.g. http://localhost:3000)"
+                                                />
+                                                <button onClick={testServerConnection} className="text-xs font-bold text-zinc-600 hover:text-zinc-800 underline">
+                                                    Test Connection
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        });
+
+        // ========== 主应用组件 ==========
+        const App = () => {
+            // 图片状态
+            const [groups, setGroups] = useState(() => ([
+                { id: generateId(), name: '分组1', clothingImages: [], modelImages: [], collapsed: false },
+            ]));
+
+            // 任务状态
+            const [tasks, dispatch] = useReducer(taskReducer, []);
+
+            // 设置状态 - 安全加载
+            const [settings, setSettings] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('tryon_settings');
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        if (typeof parsed === 'object' && parsed !== null) {
+                            return { ...DEFAULT_SETTINGS, ...parsed };
+                        }
+                    }
+                } catch (e) {
+                    localStorage.removeItem('tryon_settings');
+                }
+                return DEFAULT_SETTINGS;
+            });
+
+            // UI 状态
+            const [isRunning, setIsRunning] = useState(false);
+            const [showSettings, setShowSettings] = useState(false);
+            const [serverStatus, setServerStatus] = useState('unknown');
+            const [localDirHandle, setLocalDirHandle] = useState(null);
+            const [localDirPermission, setLocalDirPermission] = useState('unknown'); // unknown | granted | denied
+            const [previewModalUrl, setPreviewModalUrl] = useState('');
+            const [dragOverId, setDragOverId] = useState('');
+            const [dragOverType, setDragOverType] = useState('');
+            const [activeTab, setActiveTab] = useState('main'); // main | gallery
+            const [galleryItems, setGalleryItems] = useState([]);
+            const [gallerySelected, setGallerySelected] = useState(() => new Set());
+            const [cropState, setCropState] = useState({ open: false, type: '', id: '', src: '', groupId: '' });
+            const [cropRect, setCropRect] = useState(null);
+            const [cropAspect, setCropAspect] = useState('free'); // free | 1:1 | 3:4 | 4:3
+            const [cropImageSize, setCropImageSize] = useState({ w: 0, h: 0 });
+            const cropImageRef = useRef(null);
+            const cropOverlayRef = useRef(null);
+            const isCroppingRef = useRef(false);
+            const cropStartRef = useRef({ x: 0, y: 0 });
+            const cropDragModeRef = useRef('');
+            const cropRectStartRef = useRef(null);
+            const cropHandleSize = 10;
+            const prevImageIdsRef = useRef({ clothing: new Set(), model: new Set() });
+            const prevGroupIdsRef = useRef(new Set());
+
+            useEffect(() => {
+                if (!cropState.open) return;
+                const updateSize = () => {
+                    if (cropImageRef.current) {
+                        setCropImageSize({
+                            w: cropImageRef.current.clientWidth,
+                            h: cropImageRef.current.clientHeight,
+                        });
+                    }
+                };
+                const id = requestAnimationFrame(updateSize);
+                window.addEventListener('resize', updateSize);
+                return () => {
+                    cancelAnimationFrame(id);
+                    window.removeEventListener('resize', updateSize);
+                };
+            }, [cropState.open, cropState.src]);
+
+            const getOverlayPoint = useCallback((e) => {
+                const overlay = cropOverlayRef.current;
+                if (!overlay) return { x: 0, y: 0 };
+                const rect = overlay.getBoundingClientRect();
+                return {
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top,
+                };
+            }, []);
+
+            const clampRectToImage = useCallback((rect) => {
+                const maxW = cropImageSize.w;
+                const maxH = cropImageSize.h;
+                const x = Math.min(Math.max(rect.x, 0), maxW);
+                const y = Math.min(Math.max(rect.y, 0), maxH);
+                const w = Math.min(Math.max(rect.w, 1), maxW - x);
+                const h = Math.min(Math.max(rect.h, 1), maxH - y);
+                return { x, y, w, h };
+            }, [cropImageSize]);
+
+            const applyAspect = useCallback((rect, anchor = 'se') => {
+                if (cropAspect === 'free') return rect;
+                const ratio = cropAspect === '1:1' ? 1 : cropAspect === '3:4' ? 3 / 4 : 4 / 3;
+                let { x, y, w, h } = rect;
+                if (anchor === 'se') {
+                    h = w / ratio;
+                } else if (anchor === 'sw') {
+                    h = w / ratio;
+                    x = x - (w - rect.w);
+                } else if (anchor === 'ne') {
+                    h = w / ratio;
+                    y = y - (h - rect.h);
+                } else if (anchor === 'nw') {
+                    h = w / ratio;
+                    x = x - (w - rect.w);
+                    y = y - (h - rect.h);
+                }
+                return { x, y, w, h };
+            }, [cropAspect]);
+
+            const handleCropPointerDown = useCallback((e) => {
+                if (!cropOverlayRef.current) return;
+                if (cropImageSize.w === 0 || cropImageSize.h === 0) return;
+                const { x, y } = getOverlayPoint(e);
+                if (x < 0 || y < 0 || x > cropImageSize.w || y > cropImageSize.h) return;
+                const hs = cropHandleSize;
+                let mode = 'new';
+                if (cropRect) {
+                    const inRect = x >= cropRect.x && x <= cropRect.x + cropRect.w && y >= cropRect.y && y <= cropRect.y + cropRect.h;
+                    const near = (cx, cy) => Math.abs(x - cx) <= hs && Math.abs(y - cy) <= hs;
+                    if (near(cropRect.x, cropRect.y)) mode = 'nw';
+                    else if (near(cropRect.x + cropRect.w, cropRect.y)) mode = 'ne';
+                    else if (near(cropRect.x, cropRect.y + cropRect.h)) mode = 'sw';
+                    else if (near(cropRect.x + cropRect.w, cropRect.y + cropRect.h)) mode = 'se';
+                    else if (inRect) mode = 'move';
+                }
+                cropDragModeRef.current = mode;
+                isCroppingRef.current = true;
+                cropStartRef.current = { x, y };
+                cropRectStartRef.current = cropRect ? { ...cropRect } : null;
+                if (mode === 'new') {
+                    setCropRect({ x, y, w: 1, h: 1 });
+                }
+                if (cropOverlayRef.current.setPointerCapture) {
+                    cropOverlayRef.current.setPointerCapture(e.pointerId);
+                }
+            }, [cropRect, cropImageSize, getOverlayPoint]);
+
+            const handleCropPointerMove = useCallback((e) => {
+                if (!isCroppingRef.current) return;
+                const { x, y } = getOverlayPoint(e);
+                const clampX = Math.min(Math.max(x, 0), cropImageSize.w);
+                const clampY = Math.min(Math.max(y, 0), cropImageSize.h);
+                const start = cropStartRef.current;
+                const mode = cropDragModeRef.current;
+
+                if (mode === 'new') {
+                    const rx = Math.min(start.x, clampX);
+                    const ry = Math.min(start.y, clampY);
+                    const rw = Math.abs(clampX - start.x);
+                    const rh = Math.abs(clampY - start.y);
+                    setCropRect(clampRectToImage(applyAspect({ x: rx, y: ry, w: rw, h: rh }, 'se')));
+                    return;
+                }
+
+                if (!cropRectStartRef.current) return;
+                const base = cropRectStartRef.current;
+                if (mode === 'move') {
+                    const dx = clampX - start.x;
+                    const dy = clampY - start.y;
+                    setCropRect(clampRectToImage({ x: base.x + dx, y: base.y + dy, w: base.w, h: base.h }));
+                    return;
+                }
+
+                let next = { ...base };
+                if (mode === 'se') {
+                    next.w = Math.max(1, clampX - base.x);
+                    next.h = Math.max(1, clampY - base.y);
+                    next = applyAspect(next, 'se');
+                } else if (mode === 'sw') {
+                    next.w = Math.max(1, base.x + base.w - clampX);
+                    next.h = Math.max(1, clampY - base.y);
+                    next.x = base.x + base.w - next.w;
+                    next = applyAspect(next, 'sw');
+                } else if (mode === 'ne') {
+                    next.w = Math.max(1, clampX - base.x);
+                    next.h = Math.max(1, base.y + base.h - clampY);
+                    next.y = base.y + base.h - next.h;
+                    next = applyAspect(next, 'ne');
+                } else if (mode === 'nw') {
+                    next.w = Math.max(1, base.x + base.w - clampX);
+                    next.h = Math.max(1, base.y + base.h - clampY);
+                    next.x = base.x + base.w - next.w;
+                    next.y = base.y + base.h - next.h;
+                    next = applyAspect(next, 'nw');
+                }
+                setCropRect(clampRectToImage(next));
+            }, [applyAspect, clampRectToImage, cropImageSize, getOverlayPoint]);
+
+            const handleCropPointerUp = useCallback((e) => {
+                isCroppingRef.current = false;
+                if (cropOverlayRef.current && cropOverlayRef.current.releasePointerCapture) {
+                    cropOverlayRef.current.releasePointerCapture(e.pointerId);
+                }
+                if (!cropRect || cropRect.w < 8 || cropRect.h < 8) {
+                    const minSize = 120;
+                    const cx = Math.min(Math.max(cropStartRef.current.x - minSize / 2, 0), cropImageSize.w - minSize);
+                    const cy = Math.min(Math.max(cropStartRef.current.y - minSize / 2, 0), cropImageSize.h - minSize);
+                    setCropRect(clampRectToImage({ x: cx, y: cy, w: minSize, h: minSize }));
+                }
+                cropDragModeRef.current = 'move';
+            }, [cropImageSize, cropRect, clampRectToImage]);
+
+            // Refs
+            const semaphoreRef = useRef(null);
+            const abortControllerRef = useRef(null);
+
+            // 保存设置
+            useEffect(() => {
+                try {
+                    localStorage.setItem('tryon_settings', JSON.stringify(settings));
+                } catch (e) { /* ignore */ }
+            }, [settings]);
+
+            // 组件卸载时清理资源
+            useEffect(() => {
+                return () => {
+                    if (abortControllerRef.current) {
+                        abortControllerRef.current.abort();
+                    }
+                };
+            }, []);
+
+            useEffect(() => {
+                loadHandleFromDB('localDir').then(handle => {
+                    if (handle) setLocalDirHandle(handle);
+                });
+            }, []);
+
+            useEffect(() => {
+                if (localDirHandle) {
+                    saveHandleToDB('localDir', localDirHandle);
+                } else {
+                    deleteHandleFromDB('localDir');
+                }
+            }, [localDirHandle]);
+
+            useEffect(() => {
+                const loadGallery = async () => {
+                    try {
+                        const saved = localStorage.getItem('tryon_gallery');
+                        if (!saved) return;
+                        const parsed = JSON.parse(saved);
+                        if (!Array.isArray(parsed)) return;
+                        const items = await Promise.all(parsed.map(async (item) => {
+                            const dataUrl = item?.dbKey ? await loadImageFromDB(item.dbKey) : null;
+                            if (!dataUrl) return null;
+                            const clothingUrl = item?.clothingDbKey ? await loadImageFromDB(item.clothingDbKey) : null;
+                            const modelUrl = item?.modelDbKey ? await loadImageFromDB(item.modelDbKey) : null;
+                            return { ...item, url: dataUrl, clothingUrl, modelUrl };
+                        }));
+                        setGalleryItems(items.filter(Boolean));
+                    } catch (e) { /* ignore */ }
+                };
+                loadGallery();
+            }, []);
+
+            useEffect(() => {
+                const loadImages = async () => {
+                    try {
+                        const saved = localStorage.getItem('tryon_groups');
+                        if (!saved) return;
+                        const parsed = JSON.parse(saved);
+                        if (!Array.isArray(parsed)) return;
+                        const loadList = async (list) => {
+                            if (!Array.isArray(list)) return [];
+                            const items = await Promise.all(list.map(async (item) => {
+                                const dbKey = item?.dbKey || item?.id;
+                                const dataUrl = dbKey ? await loadImageFromDB(dbKey) : null;
+                                if (!dataUrl) return null;
+                                return { id: item.id || dbKey, name: item.name || 'image', url: dataUrl };
+                            }));
+                            return items.filter(Boolean);
+                        };
+                        const nextGroups = await Promise.all(parsed.map(async (g, idx) => ({
+                            id: g.id || generateId(),
+                            name: g.name || `分组${idx + 1}`,
+                            clothingImages: await loadList(g.clothingImages || []),
+                            modelImages: await loadList(g.modelImages || []),
+                            collapsed: !!g.collapsed,
+                        })));
+                        if (nextGroups.length > 0) setGroups(nextGroups);
+                    } catch (e) { /* ignore */ }
+                };
+                loadImages();
+            }, []);
+
+            useEffect(() => {
+                try {
+                    const persist = async () => {
+                        const allClothing = [];
+                        const allModel = [];
+                        groups.forEach(g => {
+                            allClothing.push(...g.clothingImages);
+                            allModel.push(...g.modelImages);
+                        });
+                        await Promise.all(allClothing.map(img => img.url?.startsWith('data:') ? saveImageToDB(img.id, img.url) : Promise.resolve()));
+                        await Promise.all(allModel.map(img => img.url?.startsWith('data:') ? saveImageToDB(img.id, img.url) : Promise.resolve()));
+
+                        localStorage.setItem('tryon_groups', JSON.stringify(groups.map(g => ({
+                            id: g.id,
+                            name: g.name,
+                            collapsed: !!g.collapsed,
+                            clothingImages: g.clothingImages.map(i => ({ id: i.id, name: i.name, dbKey: i.id })),
+                            modelImages: g.modelImages.map(i => ({ id: i.id, name: i.name, dbKey: i.id })),
+                        }))));
+
+                        const currentClothing = new Set(allClothing.map(i => i.id));
+                        const currentModel = new Set(allModel.map(i => i.id));
+                        for (const id of prevImageIdsRef.current.clothing) {
+                            if (!currentClothing.has(id)) await deleteImageFromDB(id);
+                        }
+                        for (const id of prevImageIdsRef.current.model) {
+                            if (!currentModel.has(id)) await deleteImageFromDB(id);
+                        }
+                        prevImageIdsRef.current = { clothing: currentClothing, model: currentModel };
+
+                        const currentGroupIds = new Set(groups.map(g => g.id));
+                        prevGroupIdsRef.current = currentGroupIds;
+                    };
+                    persist();
+                } catch (e) { /* ignore */ }
+            }, [groups]);
+
+            useEffect(() => {
+                saveGalleryMeta(galleryItems);
+            }, [galleryItems]);
+
+            useEffect(() => {
+                const checkPermission = async () => {
+                    if (!localDirHandle || !localDirHandle.queryPermission) return;
+                    try {
+                        const perm = await localDirHandle.queryPermission({ mode: 'readwrite' });
+                        setLocalDirPermission(perm === 'granted' ? 'granted' : 'denied');
+                    } catch (e) { setLocalDirPermission('denied'); }
+                };
+                checkPermission();
+            }, [localDirHandle]);
+
+            const ensureLocalDirPermission = useCallback(async () => {
+                if (!localDirHandle) return false;
+                try {
+                    if (localDirHandle.queryPermission) {
+                        let perm = await localDirHandle.queryPermission({ mode: 'readwrite' });
+                        if (perm !== 'granted' && localDirHandle.requestPermission) {
+                            perm = await localDirHandle.requestPermission({ mode: 'readwrite' });
+                        }
+                        setLocalDirPermission(perm === 'granted' ? 'granted' : 'denied');
+                        return perm === 'granted';
+                    }
+                } catch (e) { /* ignore */ }
+                return false;
+            }, [localDirHandle]);
+
+            // ========== 文件处理函数 ==========
+            const handleFileDrop = useCallback((e, type, groupId) => {
+                e.preventDefault();
+                e.currentTarget.classList.remove('dragover');
+                const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+                if (files.length === 0) return;
+                Promise.all(files.map(async (file) => ({
+                    id: generateId(),
+                    url: await readFileAsDataURL(file),
+                    name: file.name,
+                }))).then((imageUrls) => {
+                    setGroups(prev => prev.map(g => {
+                        if (g.id !== groupId) return g;
+                        if (type === 'clothing') return { ...g, clothingImages: [...g.clothingImages, ...imageUrls] };
+                        return { ...g, modelImages: [...g.modelImages, ...imageUrls] };
+                    }));
+                });
+            }, []);
+
+            const handleFileSelect = useCallback((e, type, groupId) => {
+                const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
+                if (files.length === 0) return;
+                Promise.all(files.map(async (file) => ({
+                    id: generateId(),
+                    url: await readFileAsDataURL(file),
+                    name: file.name,
+                }))).then((imageUrls) => {
+                    setGroups(prev => prev.map(g => {
+                        if (g.id !== groupId) return g;
+                        if (type === 'clothing') return { ...g, clothingImages: [...g.clothingImages, ...imageUrls] };
+                        return { ...g, modelImages: [...g.modelImages, ...imageUrls] };
+                    }));
+                });
+                e.target.value = '';
+            }, []);
+
+            const clearImages = useCallback((type, groupId) => {
+                setGroups(prev => prev.map(g => {
+                    if (g.id !== groupId) return g;
+                    if (type === 'clothing') return { ...g, clothingImages: [] };
+                    return { ...g, modelImages: [] };
+                }));
+            }, []);
+
+            const removeImage = useCallback((type, id, groupId) => {
+                setGroups(prev => prev.map(g => {
+                    if (g.id !== groupId) return g;
+                    if (type === 'clothing') return { ...g, clothingImages: g.clothingImages.filter(i => i.id !== id) };
+                    return { ...g, modelImages: g.modelImages.filter(i => i.id !== id) };
+                }));
+            }, []);
+
+            const updateImageUrl = useCallback((type, id, newUrl, groupId) => {
+                setGroups(prev => prev.map(g => {
+                    if (g.id !== groupId) return g;
+                    const updater = (list) => list.map(img => img.id === id ? { ...img, url: newUrl } : img);
+                    if (type === 'clothing') return { ...g, clothingImages: updater(g.clothingImages) };
+                    return { ...g, modelImages: updater(g.modelImages) };
+                }));
+            }, []);
+
+            const reorderImages = useCallback((type, fromId, toId, groupId) => {
+                const reorder = (list) => {
+                    const fromIndex = list.findIndex(i => i.id === fromId);
+                    const toIndex = list.findIndex(i => i.id === toId);
+                    if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return list;
+                    const next = list.slice();
+                    const [moved] = next.splice(fromIndex, 1);
+                    next.splice(toIndex, 0, moved);
+                    return next;
+                };
+                setGroups(prev => prev.map(g => {
+                    if (g.id !== groupId) return g;
+                    if (type === 'clothing') return { ...g, clothingImages: reorder(g.clothingImages) };
+                    return { ...g, modelImages: reorder(g.modelImages) };
+                }));
+            }, []);
+
+            const reorderImagesByIndex = useCallback((type, fromIndex, toIndex, groupId) => {
+                const reorder = (list) => {
+                    if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return list;
+                    const next = list.slice();
+                    const [moved] = next.splice(fromIndex, 1);
+                    const insertIndex = fromIndex < toIndex ? toIndex - 1 : toIndex;
+                    next.splice(insertIndex, 0, moved);
+                    return next;
+                };
+                setGroups(prev => prev.map(g => {
+                    if (g.id !== groupId) return g;
+                    if (type === 'clothing') return { ...g, clothingImages: reorder(g.clothingImages) };
+                    return { ...g, modelImages: reorder(g.modelImages) };
+                }));
+            }, []);
+
+            // ========== 服务器连接测试 ==========
+            const testServerConnection = useCallback(async () => {
+                try {
+                    const response = await fetch(`${settings.serverUrl}/api/health`, {
+                        method: 'GET',
+                        signal: AbortSignal.timeout(5000),
+                    });
+                    setServerStatus(response.ok ? 'connected' : 'error');
+                } catch (e) {
+                    setServerStatus('error');
+                }
+            }, [settings.serverUrl]);
+
+            // ========== 保存图片到服务器 ==========
+            const saveImageToServer = useCallback(async (imageUrl, filename) => {
+                if (!settings.autoSave || settings.saveMode !== 'server' || !settings.serverUrl) return { success: false };
+                try {
+                    const blob = await getBlobFromUrl(imageUrl);
+                    const formData = new FormData();
+                    formData.append('image', blob, filename);
+                    const subfolder = sanitizeSubfolder(settings.subfolder);
+                    if (subfolder) formData.append('subfolder', subfolder);
+                    const response = await fetch(`${settings.serverUrl}/api/save-image`, {
+                        method: 'POST',
+                        body: formData,
+                        signal: AbortSignal.timeout(30000),
+                    });
+                    return { success: response.ok };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            }, [settings.autoSave, settings.saveMode, settings.serverUrl, settings.subfolder]);
+
+            // ========== 保存图片到本地文件夹 ==========
+            const saveImageToLocalFolder = useCallback(async (imageUrl, filename) => {
+                if (!settings.autoSave || settings.saveMode !== 'local') return { success: false };
+                if (!localDirHandle) return { success: false, error: '未选择保存文件夹' };
+                try {
+                    const hasPerm = await ensureLocalDirPermission();
+                    if (!hasPerm) return { success: false, error: '未授权写入权限' };
+                    const blob = await getBlobFromUrl(imageUrl);
+                    const fileHandle = await localDirHandle.getFileHandle(filename, { create: true });
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+                    return { success: true };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            }, [settings.autoSave, settings.saveMode, localDirHandle, ensureLocalDirPermission]);
+
+            const addToGallery = useCallback(async (imageUrl, filename, clothingImg, modelImg) => {
+                try {
+                    const dataUrl = imageUrl.startsWith('data:') ? imageUrl : await blobToDataURL(await getBlobFromUrl(imageUrl));
+                    const id = generateId();
+                    const dbKey = `gallery_${id}`;
+                    await saveImageToDB(dbKey, dataUrl);
+                    const clothingDbKey = clothingImg?.url?.startsWith('data:') ? `gallery_src_c_${id}` : null;
+                    const modelDbKey = modelImg?.url?.startsWith('data:') ? `gallery_src_m_${id}` : null;
+                    if (clothingDbKey) await saveImageToDB(clothingDbKey, clothingImg.url);
+                    if (modelDbKey) await saveImageToDB(modelDbKey, modelImg.url);
+                    setGalleryItems(prev => [{
+                        id,
+                        name: filename,
+                        createdAt: Date.now(),
+                        dbKey,
+                        url: dataUrl,
+                        clothingName: clothingImg?.name || '',
+                        modelName: modelImg?.name || '',
+                        clothingDbKey,
+                        modelDbKey,
+                        clothingUrl: clothingImg?.url || '',
+                        modelUrl: modelImg?.url || '',
+                    }, ...prev]);
+                } catch (e) { /* ignore */ }
+            }, []);
+
+            const downloadGalleryItems = useCallback(async (items) => {
+                for (let i = 0; i < items.length; i++) {
+                    const item = items[i];
+                    try {
+                        const blob = await getBlobFromUrl(item.url);
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = item.name || `gallery_${i + 1}_${Date.now()}.jpg`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        await new Promise(r => setTimeout(r, DOWNLOAD_DELAY_MS));
+                    } catch (e) { /* ignore */ }
+                }
+            }, []);
+
+            const regenSingle = useCallback(async (clothingUrl, modelUrl, clothingName, modelName) => {
+                if (!clothingUrl || !modelUrl) {
+                    alert('缺少源图，无法重新生成');
+                    return;
+                }
+                const task = {
+                    id: generateId(),
+                    clothingImg: { id: generateId(), url: clothingUrl, name: clothingName || 'clothing' },
+                    modelImg: { id: generateId(), url: modelUrl, name: modelName || 'model' },
+                    status: 'pending',
+                    progress: 0,
+                    resultUrl: null,
+                    error: null,
+                    saved: false,
+                };
+
+                dispatch({ type: 'SET_TASKS', tasks: [...tasks, task] });
+                setIsRunning(true);
+
+                if (!abortControllerRef.current || abortControllerRef.current.signal.aborted) {
+                    abortControllerRef.current = new AbortController();
+                }
+                if (!semaphoreRef.current) {
+                    semaphoreRef.current = new Semaphore(settings.concurrency);
+                }
+                const signal = abortControllerRef.current.signal;
+
+                await semaphoreRef.current.acquire();
+                try {
+                    if (!signal.aborted) await processTask(task, signal);
+                } finally {
+                    semaphoreRef.current.release();
+                }
+                setIsRunning(false);
+            }, [tasks, settings.concurrency, processTask]);
+
+            // ========== 自动下载到本地 ==========
+            const autoDownloadImage = useCallback(async (imageUrl, filename) => {
+                if (!settings.autoSave || settings.saveMode !== 'download' || !settings.autoDownload) return { success: false };
+                try {
+                    const blob = await getBlobFromUrl(imageUrl);
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    return { success: true };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            }, [settings.autoSave, settings.saveMode, settings.autoDownload]);
+
+            // ========== API调用函数 ==========
+            const callTryonAPI = useCallback(async (clothingImg, modelImg, signal) => {
+                const clothingDataUrl = await convertToJpgDataUrl(clothingImg.url);
+                const modelDataUrl = await convertToJpgDataUrl(modelImg.url);
+                if (!clothingDataUrl || !modelDataUrl) {
+                    throw new Error('图片转换失败');
+                }
+
+                const clothingBlob = await fetch(clothingDataUrl).then(r => r.blob());
+                const modelBlob = await fetch(modelDataUrl).then(r => r.blob());
+
+                const buildFormData = (imageField) => {
+                    const fd = new FormData();
+                    fd.append(imageField, clothingBlob, 'clothing.jpg');
+                    fd.append(imageField, modelBlob, 'model.jpg');
+                    fd.append('model', settings.model || 'nano-banana-2');
+                    fd.append('prompt', settings.prompt);
+                    if (settings.responseFormat) fd.append('response_format', settings.responseFormat);
+                    if (settings.aspectRatio) fd.append('aspect_ratio', settings.aspectRatio);
+                    if (settings.imageSize) fd.append('image_size', settings.imageSize);
+                    return fd;
+                };
+
+                const requestOnce = async (imageField) => {
+                    const response = await fetch(`${settings.baseUrl}/v1/images/edits`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${settings.apiKey}` },
+                        body: buildFormData(imageField),
+                        signal,
+                    });
+                    return response;
+                };
+
+                let response = await requestOnce('image');
+                if (!response.ok && (response.status === 400 || response.status === 422)) {
+                    const errText = await response.text().catch(() => '');
+                    response = await requestOnce('image[]');
+                    if (!response.ok) {
+                        const retryErr = await response.text().catch(() => '');
+                        throw new Error(`API错误: ${response.status} ${retryErr || errText}`);
+                    }
+                } else if (!response.ok) {
+                    const errText = await response.text().catch(() => '');
+                    throw new Error(`API错误: ${response.status} ${errText}`);
+                }
+
+                const data = await response.json().catch(() => ({}));
+                const imageUrl = deepSearchForUrl(data);
+                if (imageUrl) return imageUrl;
+                const b64 = data?.data?.[0]?.b64_json;
+                if (b64) return `data:image/png;base64,${b64}`;
+                throw new Error('未找到结果图片URL');
+            }, [settings.baseUrl, settings.prompt, settings.model, settings.responseFormat, settings.aspectRatio, settings.imageSize, settings.apiKey]);
+
+            // ========== 处理单个任务 ==========
+            const processTask = useCallback(async (task, signal) => {
+                dispatch({ type: 'UPDATE_TASK', id: task.id, updates: { status: 'processing', progress: 30 } });
+                try {
+                    const resultUrl = await callTryonAPI(task.clothingImg, task.modelImg, signal);
+
+                    let saved = false;
+                    if (settings.autoSave) {
+                        const filename = `tryon_${task.clothingImg.name}_${task.modelImg.name}_${Date.now()}.jpg`;
+                        if (settings.saveMode === 'server') {
+                            const saveResult = await saveImageToServer(resultUrl, filename);
+                            saved = saveResult.success;
+                        } else if (settings.saveMode === 'local') {
+                            const saveResult = await saveImageToLocalFolder(resultUrl, filename);
+                            saved = saveResult.success;
+                        } else if (settings.saveMode === 'download') {
+                            const saveResult = await autoDownloadImage(resultUrl, filename);
+                            saved = saveResult.success;
+                        }
+                    }
+
+                    dispatch({
+                        type: 'UPDATE_TASK', id: task.id, updates: {
+                            status: 'completed', progress: 100, resultUrl, saved
+                        }
+                    });
+
+                    addToGallery(resultUrl, `tryon_${task.clothingImg.name}_${task.modelImg.name}_${Date.now()}.jpg`, task.clothingImg, task.modelImg);
+
+                    if (settings.previewCompress) {
+                        const maxSize = Number(settings.previewMaxSize) || 768;
+                        const quality = Number(settings.previewQuality) || 0.7;
+                        compressImageForPreview(resultUrl, maxSize, quality)
+                            .then(previewUrl => {
+                                if (previewUrl) {
+                                    dispatch({ type: 'UPDATE_TASK', id: task.id, updates: { previewUrl } });
+                                }
+                            });
+                    }
+                } catch (e) {
+                    if (e.message !== '已取消') {
+                        dispatch({
+                            type: 'UPDATE_TASK', id: task.id, updates: {
+                                status: 'failed', error: e.message
+                            }
+                        });
+                    }
+                }
+            }, [callTryonAPI, saveImageToServer, saveImageToLocalFolder, autoDownloadImage, addToGallery, settings.autoSave, settings.saveMode, settings.previewCompress, settings.previewMaxSize, settings.previewQuality]);
+
+            // ========== 开始批量处理 ==========
+            const buildTasksForGroup = useCallback((group) => {
+                const { clothingImages: c, modelImages: m } = group;
+                if (settings.pairingMode === 'fixedModel') {
+                    return c.map((clothing) => ({
+                        id: generateId(),
+                        clothingImg: clothing,
+                        modelImg: m[0],
+                        status: 'pending',
+                        progress: 0,
+                        resultUrl: null,
+                        error: null,
+                        saved: false,
+                    }));
+                }
+                if (settings.pairingMode === 'fixedClothing') {
+                    return m.map((model) => ({
+                        id: generateId(),
+                        clothingImg: c[0],
+                        modelImg: model,
+                        status: 'pending',
+                        progress: 0,
+                        resultUrl: null,
+                        error: null,
+                        saved: false,
+                    }));
+                }
+                return c.map((clothing, i) => ({
+                    id: generateId(),
+                    clothingImg: clothing,
+                    modelImg: m[i],
+                    status: 'pending',
+                    progress: 0,
+                    resultUrl: null,
+                    error: null,
+                    saved: false,
+                }));
+            }, [settings.pairingMode]);
+
+            const validateGroup = useCallback((group) => {
+                const c = group.clothingImages.length;
+                const m = group.modelImages.length;
+                if (c === 0 || m === 0) return '请先添加服装和模特图片';
+                if (settings.pairingMode === 'pair' && c !== m) return '服装和模特图片数量必须相同';
+                if (settings.pairingMode === 'fixedModel' && m < 1) return '固定模特模式需要至少1张模特图';
+                if (settings.pairingMode === 'fixedClothing' && c < 1) return '固定服装模式需要至少1张服装图';
+                return null;
+            }, [settings.pairingMode]);
+
+            const startBatch = useCallback(async (groupId = null) => {
+                if (!settings.apiKey) {
+                    alert('请输入API Key');
+                    return;
+                }
+                if (settings.autoSave && settings.saveMode === 'local' && !localDirHandle) {
+                    alert('请先选择保存文件夹');
+                    return;
+                }
+
+                const targetGroups = groupId ? groups.filter(g => g.id === groupId) : groups;
+                const errors = [];
+                targetGroups.forEach((g, idx) => {
+                    const err = validateGroup(g);
+                    if (err) errors.push(`${g.name || `分组${idx + 1}`}：${err}`);
+                });
+                if (errors.length > 0) {
+                    alert(errors.join('\n'));
+                    return;
+                }
+
+                const newTasks = targetGroups.flatMap(g => buildTasksForGroup(g));
+
+                dispatch({ type: 'SET_TASKS', tasks: newTasks });
+                setIsRunning(true);
+
+                abortControllerRef.current = new AbortController();
+                semaphoreRef.current = new Semaphore(settings.concurrency);
+                const signal = abortControllerRef.current.signal;
+
+                const promises = newTasks.map(task =>
+                    semaphoreRef.current.acquire().then(async () => {
+                        try {
+                            if (!signal.aborted) {
+                                await processTask(task, signal);
+                            }
+                        } finally {
+                            semaphoreRef.current.release();
+                        }
+                    })
+                );
+
+                await Promise.allSettled(promises);
+                setIsRunning(false);
+            }, [groups, settings.apiKey, settings.concurrency, settings.autoSave, settings.saveMode, localDirHandle, buildTasksForGroup, validateGroup, processTask]);
+
+            // ========== 停止批量处理 ==========
+            const stopBatch = useCallback(() => {
+                if (abortControllerRef.current) {
+                    abortControllerRef.current.abort();
+                }
+                setIsRunning(false);
+            }, []);
+
+            // ========== 重试失败任务 ==========
+            const retryFailed = useCallback(async () => {
+                const failedTasks = tasks.filter(t => t.status === 'failed');
+                if (failedTasks.length === 0) return;
+
+                failedTasks.forEach(t => {
+                    dispatch({ type: 'UPDATE_TASK', id: t.id, updates: { status: 'pending', progress: 0, error: null } });
+                });
+
+                setIsRunning(true);
+                abortControllerRef.current = new AbortController();
+                semaphoreRef.current = new Semaphore(settings.concurrency);
+                const signal = abortControllerRef.current.signal;
+
+                const promises = failedTasks.map(task =>
+                    semaphoreRef.current.acquire().then(async () => {
+                        try {
+                            if (!signal.aborted) await processTask(task, signal);
+                        } finally {
+                            semaphoreRef.current.release();
+                        }
+                    })
+                );
+
+                await Promise.allSettled(promises);
+                setIsRunning(false);
+            }, [tasks, settings.concurrency, processTask]);
+
+            // ========== 统计计算 ==========
+            const stats = useMemo(() => {
+                const pending = tasks.filter(t => t.status === 'pending').length;
+                const processing = tasks.filter(t => t.status === 'processing').length;
+                const completed = tasks.filter(t => t.status === 'completed').length;
+                const failed = tasks.filter(t => t.status === 'failed').length;
+                const total = tasks.length;
+                const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+                const running = processing;
+                const queue = pending;
+                return { pending, processing, completed, failed, total, percent, running, queue };
+            }, [tasks]);
+
+            // ========== 下载所有结果 ==========
+            const downloadAll = useCallback(async () => {
+                const completedTasks = tasks.filter(t => t.status === 'completed' && t.resultUrl);
+                for (let i = 0; i < completedTasks.length; i++) {
+                    const task = completedTasks[i];
+                    try {
+                        const blob = await getBlobFromUrl(task.resultUrl);
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `tryon_${i + 1}_${Date.now()}.jpg`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        await new Promise(r => setTimeout(r, DOWNLOAD_DELAY_MS));
+                    } catch (e) { /* ignore */ }
+                }
+            }, [tasks]);
+
+            // ========== 图片拖放区域组件 ==========
+            const moveImageBetweenGroups = useCallback((type, fromGroupId, toGroupId, fromId, toIndex = null) => {
+                setGroups(prev => {
+                    const next = prev.map(g => ({ ...g }));
+                    const fromGroup = next.find(g => g.id === fromGroupId);
+                    const toGroup = next.find(g => g.id === toGroupId);
+                    if (!fromGroup || !toGroup) return prev;
+                    const fromList = type === 'clothing' ? fromGroup.clothingImages : fromGroup.modelImages;
+                    const toList = type === 'clothing' ? toGroup.clothingImages : toGroup.modelImages;
+                    const fromIndex = fromList.findIndex(i => i.id === fromId);
+                    if (fromIndex < 0) return prev;
+                    const [moved] = fromList.splice(fromIndex, 1);
+                    if (typeof toIndex === 'number' && toIndex >= 0) toList.splice(toIndex, 0, moved);
+                    else toList.push(moved);
+                    if (type === 'clothing') {
+                        fromGroup.clothingImages = fromList;
+                        toGroup.clothingImages = toList;
+                    } else {
+                        fromGroup.modelImages = fromList;
+                        toGroup.modelImages = toList;
+                    }
+                    return next;
+                });
+            }, []);
+
+            const addGroup = useCallback(() => {
+                setGroups(prev => [{ id: generateId(), name: `分组${prev.length + 1}`, clothingImages: [], modelImages: [], collapsed: false }, ...prev]);
+            }, []);
+
+            const removeGroup = useCallback((groupId) => {
+                setGroups(prev => prev.length <= 1 ? prev : prev.filter(g => g.id !== groupId));
+            }, []);
+
+            const moveGroup = useCallback((groupId, direction) => {
+                setGroups(prev => {
+                    const index = prev.findIndex(g => g.id === groupId);
+                    if (index < 0) return prev;
+                    const next = prev.slice();
+                    const target = direction === 'up' ? index - 1 : index + 1;
+                    if (target < 0 || target >= next.length) return prev;
+                    const [moved] = next.splice(index, 1);
+                    next.splice(target, 0, moved);
+                    return next;
+                });
+            }, []);
+
+            const toggleGroupCollapse = useCallback((groupId) => {
+                setGroups(prev => prev.map(g => g.id === groupId ? { ...g, collapsed: !g.collapsed } : g));
+            }, []);
+
+            const renameGroup = useCallback((groupId, name) => {
+                setGroups(prev => prev.map(g => g.id === groupId ? { ...g, name } : g));
+            }, []);
+
+            const ImageDropZone = ({ type, images, title, groupId }) => (
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-3 px-1">
+                        <span className="text-zinc-800 text-xs font-bold tracking-widest ">{title} <span className="text-zinc-500">({images.length})</span></span>
+                        {images.length > 0 && (
+                            <button onClick={() => clearImages(type, groupId)}
+                                className="text-xs font-bold text-zinc-800 border-b-2 border-zinc-200 hover:bg-zinc-800 hover:text-white transition-colors flex items-center gap-1 group px-1">
+                                <Icon name="x" size={12} className="group-hover:rotate-90 transition-transform" />
+                                CLEAR
+                            </button>
+                        )}
+                    </div>
+                    <div className="drop-zone p-4 min-h-[140px] flex flex-col justify-center"
+                        onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('dragover'); }}
+                        onDragLeave={e => e.currentTarget.classList.remove('dragover')}
+                        onDrop={e => {
+                            const payload = e.dataTransfer.getData('application/json');
+                            if (payload) {
+                                try {
+                                    const data = JSON.parse(payload);
+                                    if (data.type === type && data.groupId) {
+                                        if (data.groupId === groupId) {
+                                            if (typeof data.index === 'number') {
+                                                reorderImagesByIndex(type, data.index, images.length, groupId);
+                                            }
+                                        } else {
+                                            moveImageBetweenGroups(type, data.groupId, groupId, data.id, images.length);
+                                        }
+                                        e.currentTarget.classList.remove('dragover');
+                                        return;
+                                    }
+                                } catch (err) { /* ignore */ }
+                            }
+                            handleFileDrop(e, type, groupId);
+                        }}>
+                        {images.length === 0 ? (
+                            <label className="flex flex-col items-center justify-center py-8 cursor-pointer group">
+                                <div className="p-4 bg-white border border-dashed border-zinc-200 group-hover:bg-primary-500 group-hover:border-solid transition-colors mb-3 shadow-[4px_4px_0px_0px_#000]">
+                                    <Icon name="upload" size={24} className="text-zinc-800 transition-colors" />
+                                </div>
+                                <span className="text-sm font-bold text-zinc-800  group-hover:underline">Drop or Click to Upload</span>
+                                <span className="text-xs text-zinc-500 mt-1 font-mono">JPG, PNG, WEBP</span>
+                                <input type="file" multiple accept="image/*" className="hidden"
+                                    onChange={e => handleFileSelect(e, type, groupId)} />
+                            </label>
+                        ) : (
+                            <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
+                                {images.map((img, idx) => (
+                                    <div
+                                        key={img.id}
+                                        className={`relative group/item aspect-square bg-white border border-zinc-200 hover:bg-yellow-100 transition-all ${dragOverId === img.id && dragOverType === type
+                                            ? 'border-primary-500 scale-[1.05] z-10 shadow-hard'
+                                            : 'shadow-sm hover:shadow-hard hover:-translate-y-1 hover:-translate-x-1'
+                                            }`}
+                                        draggable
+                                        onDragStart={(e) => {
+                                            e.dataTransfer.setData('text/plain', img.id);
+                                            e.dataTransfer.setData('application/json', JSON.stringify({ id: img.id, type, groupId, index: idx }));
+                                            e.dataTransfer.effectAllowed = 'move';
+                                        }}
+                                        onDragEnter={() => { setDragOverId(img.id); setDragOverType(type); }}
+                                        onDragOver={(e) => {
+                                            e.preventDefault();
+                                            e.dataTransfer.dropEffect = 'move';
+                                            if (dragOverId !== img.id || dragOverType !== type) {
+                                                setDragOverId(img.id); setDragOverType(type);
+                                            }
+                                        }}
+                                        onDrop={(e) => {
+                                            e.preventDefault();
+                                            const payload = e.dataTransfer.getData('application/json');
+                                            if (payload) {
+                                                try {
+                                                    const data = JSON.parse(payload);
+                                                    if (data.type === type) {
+                                                        if (data.groupId === groupId) {
+                                                            if (typeof data.index === 'number' && data.index !== idx) {
+                                                                reorderImagesByIndex(type, data.index, idx, groupId);
+                                                            }
+                                                        } else {
+                                                            moveImageBetweenGroups(type, data.groupId, groupId, data.id, idx);
+                                                        }
+                                                    }
+                                                } catch (err) { /* ignore */ }
+                                            }
+                                            setDragOverId('');
+                                            setDragOverType('');
+                                        }}
+                                        onDragEnd={() => {
+                                            setDragOverId('');
+                                            setDragOverType('');
+                                        }}
+                                        onDragLeave={() => {
+                                            if (dragOverId === img.id && dragOverType === type) {
+                                                setDragOverId('');
+                                                setDragOverType('');
+                                            }
+                                        }}
+                                        title="Drag to reorder"
+                                    >
+                                        <img src={img.url} className="w-full h-full object-cover transition-transform group-hover/item:scale-110 duration-500" />
+
+                                        <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover/item:opacity-100 transition-opacity flex justify-between items-end translate-y-2 group-hover/item:translate-y-0 duration-300">
+                                            <div className="text-[10px] bg-white/20 backdrop-blur-md px-1.5 rounded text-white font-medium">{idx + 1}</div>
+                                            <div className="flex gap-1">
+                                                <button
+                                                    onClick={() => setCropState({ open: true, type, id: img.id, src: img.url, groupId })}
+                                                    className="p-1.5 bg-white/10 hover:bg-primary-500 rounded-md text-white backdrop-blur-md transition-colors"
+                                                    title="Crop"
+                                                >
+                                                    <Icon name="crop" size={12} />
+                                                </button>
+                                                <button
+                                                    onClick={() => removeImage(type, img.id, groupId)}
+                                                    className="p-1.5 bg-white/10 hover:bg-red-500 rounded-md text-white backdrop-blur-md transition-colors"
+                                                    title="Remove"
+                                                >
+                                                    <Icon name="x" size={12} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                                <label
+                                    className="aspect-square border border-white/5 bg-white/5 hover:bg-white/10 rounded-lg flex items-center justify-center cursor-pointer transition-all hover:scale-105 active:scale-95"
+                                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+                                    onDrop={(e) => {
+                                        e.preventDefault();
+                                        const payload = e.dataTransfer.getData('application/json');
+                                        if (payload) {
+                                            try {
+                                                const data = JSON.parse(payload);
+                                                if (data.type === type && data.groupId) {
+                                                    if (data.groupId === groupId) {
+                                                        if (typeof data.index === 'number') {
+                                                            reorderImagesByIndex(type, data.index, images.length, groupId);
+                                                        }
+                                                    } else {
+                                                        moveImageBetweenGroups(type, data.groupId, groupId, data.id, images.length);
+                                                    }
+                                                }
+                                            } catch (err) { /* ignore */ }
+                                        }
+                                    }}
+                                >
+                                    <Icon name="plus" size={20} className="text-zinc-500 hover:text-white transition-colors" />
+                                    <input type="file" multiple accept="image/*" className="hidden"
+                                        onChange={e => handleFileSelect(e, type, groupId)} />
+                                </label>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+
+            // ========== 任务卡片组件 ==========
+            const TaskCard = ({ task, index }) => {
+                const statusConfig = {
+                    pending: { color: 'bg-zinc-200 border-zinc-200', text: 'QUEUE', icon: 'square' },
+                    processing: { color: 'bg-yellow-400 border-zinc-200', text: 'BUSY', icon: 'play' },
+                    completed: { color: 'bg-green-400 border-zinc-200', text: 'DONE', icon: 'check' },
+                    failed: { color: 'bg-red-400 border-zinc-200', text: 'FAIL', icon: 'alert-circle' }
+                };
+                const config = statusConfig[task.status] || statusConfig.pending;
+                const displayUrl = task.previewUrl || task.resultUrl;
+
+                return (
+                    <div className="soft-card bg-white p-3 relative group transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
+                        <div className="flex justify-between items-center mb-2">
+                            <div className="text-[12px] font-bold text-zinc-800 font-mono">#{index + 1}</div>
+                            <div className={`text-[10px] px-2 py-0.5 border flex items-center gap-1 ${config.color} text-zinc-800 font-bold shadow-sm`}>
+                                {task.status === 'processing' && <Icon name="refresh-cw" size={8} className="animate-spin" />}
+                                {config.text}
+                            </div>
+                        </div>
+
+                        <div className="relative aspect-[3/4] border border-zinc-200 bg-zinc-100 overflow-hidden">
+                            {displayUrl ? (
+                                <>
+                                    <img
+                                        src={displayUrl}
+                                        loading="lazy"
+                                        className="w-full h-full object-cover"
+                                        onClick={() => task.resultUrl && setPreviewModalUrl(task.resultUrl)}
+                                    />
+                                    {task.status === 'completed' && (
+                                        <div className="absolute inset-0 bg-white/90 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 border border-zinc-200 m-2 shadow-sm">
+                                            <button
+                                                onClick={() => task.resultUrl && setPreviewModalUrl(task.resultUrl)}
+                                                className="px-3 py-1.5 bg-black text-white hover:bg-zinc-800 rounded-none text-xs font-bold  transition-colors border border-zinc-200 shadow-sm active:shadow-none active:translate-x-[1px] active:translate-y-[1px]"
+                                                title="View Result"
+                                            >
+                                                Preview
+                                            </button>
+                                            <button
+                                                onClick={() => regenSingle(task.clothingImg?.url, task.modelImg?.url, task.clothingImg?.name, task.modelImg?.name)}
+                                                className="px-3 py-1.5 bg-primary-500 hover:bg-primary-400 text-white rounded-none text-xs font-bold  transition-colors border border-zinc-200 shadow-sm active:shadow-none active:translate-x-[1px] active:translate-y-[1px]"
+                                                title="Regenerate Task"
+                                            >
+                                                Regen
+                                            </button>
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    {task.status === 'processing' ? (
+                                        <div className="relative w-12 h-12">
+                                            <div className="absolute inset-0 border-4 border-zinc-200/10 rounded-full"></div>
+                                            <div className="absolute inset-0 border-4 border-t-primary-500 rounded-full animate-spin"></div>
+                                            <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-zinc-800">
+                                                {task.progress}%
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <Icon name="image" size={24} className="text-zinc-300" />
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {task.status === 'failed' && (
+                            <div className="mt-2 text-[10px] font-bold text-red-600 truncate bg-red-100 border border-zinc-200 px-2 py-1 shadow-sm" title={task.error}>
+                                Error: {task.error}
+                            </div>
+                        )}
+                        {task.saved && (
+                            <div className="absolute top-2 right-2 translate-x-1 -translate-y-1 tip-saved">
+                                <span className="flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            // ========== 主渲染 ==========
+            return (
+                <div className="min-h-screen bg-[#f0f0f0] text-zinc-800 p-4 sm:p-6 lg:p-8 font-sans selection:bg-yellow-400 selection:text-zinc-800">
+                    <div className="relative max-w-7xl mx-auto space-y-8">
+                        {showSettings && (
+                            <SettingsPanel
+                                settings={settings}
+                                setSettings={setSettings}
+                                onClose={() => setShowSettings(false)}
+                                testServerConnection={testServerConnection}
+                                localDirHandle={localDirHandle}
+                                setLocalDirHandle={setLocalDirHandle}
+                                localDirPermission={localDirPermission}
+                                ensureLocalDirPermission={ensureLocalDirPermission}
+                            />
+                        )}
+
+                        {previewModalUrl && (
+                            <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 animate-fade-in" onClick={() => setPreviewModalUrl('')}>
+                                <div className="relative max-w-[95vw] max-h-[95vh] p-4 bg-white border border-zinc-200 shadow-lg" onClick={e => e.stopPropagation()}>
+                                    <img src={previewModalUrl} className="max-w-full max-h-[85vh] border border-zinc-200" />
+                                    <button onClick={() => setPreviewModalUrl('')} className="absolute -top-4 -right-4 p-2 bg-primary-500 hover:bg-primary-400 border border-zinc-200 text-white transition-colors shadow-sm active:shadow-none active:translate-x-[2px] active:translate-y-[2px]">
+                                        <Icon name="x" size={24} />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {cropState.open && (
+                                            <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 animate-fade-in"
+                                                onClick={() => { setCropState({ open: false, type: '', id: '', src: '', groupId: '' }); setCropRect(null); }}>
+                                                <div className="soft-card bg-white p-6 w-[95vw] max-w-4xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                                                    <div className="flex items-center justify-between mb-4 shrink-0 border-b border-zinc-200 pb-4 -mx-6 px-6 pt-2 bg-white sticky top-0 z-10">
+                                                        <h3 className="text-xl font-bold text-zinc-800 flex items-center gap-2  tracking-tight">
+                                                            <Icon name="crop" size={24} className="text-zinc-800" />
+                                                            Crop Image
+                                                        </h3>
+                                                        <button onClick={() => { setCropState({ open: false, type: '', id: '', src: '', groupId: '' }); setCropRect(null); }}
+                                                            className="p-2 hover:bg-zinc-800 hover:text-white border border-zinc-200 transition-colors">
+                                                            <Icon name="x" size={20} />
+                                                        </button>
+                                                    </div>
+
+                                                    <div className="flex-1 bg-zinc-100 border border-zinc-200 relative overflow-hidden flex items-center justify-center min-h-0 p-4">
+                                                        <div className="relative w-fit h-fit max-w-full max-h-full">
+                                                            <img
+                                                                ref={cropImageRef}
+                                                                src={cropState.src}
+                                                                alt="crop"
+                                                                style={{ maxHeight: '65vh' }}
+                                                                className="block max-w-full max-h-full object-contain select-none pointer-events-none"
+                                                                onLoad={() => {
+                                                                    setCropImageSize({
+                                                                        w: cropImageRef.current ? cropImageRef.current.clientWidth : 0,
+                                                                        h: cropImageRef.current ? cropImageRef.current.clientHeight : 0,
+                                                                    });
+                                                                    setCropRect(null);
+                                                                }}
+                                                            />
+                                                            <div
+                                                                ref={cropOverlayRef}
+                                                                className="absolute inset-0 touch-none"
+                                                                onPointerDown={handleCropPointerDown}
+                                                                onPointerMove={handleCropPointerMove}
+                                                                onPointerUp={handleCropPointerUp}
+                                                                onPointerLeave={() => { isCroppingRef.current = false; }}
+                                                                onPointerCancel={() => { isCroppingRef.current = false; }}
+                                                            >
+                                                                {cropRect && (
+                                                                    <>
+                                                                        <div className="absolute inset-0 bg-black/60" />
+                                                                        <div
+                                                                            className="absolute border border-white/50"
+                                                                            style={{ left: cropRect.x, top: cropRect.y, width: cropRect.w, height: cropRect.h, boxShadow: '0 0 0 9999px rgba(0,0,0,0.6)' }}
+                                                                        />
+                                                                        <div className="absolute border border-primary-500"
+                                                                            style={{ left: cropRect.x, top: cropRect.y, width: cropRect.w, height: cropRect.h }}
+                                                                        />
+                                                                        {[
+                                                                            { left: cropRect.x - 6, top: cropRect.y - 6 },
+                                                                            { left: cropRect.x + cropRect.w - 6, top: cropRect.y - 6 },
+                                                                            { left: cropRect.x - 6, top: cropRect.y + cropRect.h - 6 },
+                                                                            { left: cropRect.x + cropRect.w - 6, top: cropRect.y + cropRect.h - 6 }
+                                                                        ].map((pos, i) => (
+                                                                            <div key={i} className="absolute w-4 h-4 bg-primary-500 border border-zinc-200 shadow-sm"
+                                                                                style={{ left: pos.left, top: pos.top }}
+                                                                            />
+                                                                        ))}
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="mt-6 flex items-center justify-between shrink-0">
+                                                        <div className="flex items-center gap-4 bg-white border border-zinc-200 px-4 py-2 shadow-sm">
+                                                            <span className="text-xs font-bold text-zinc-800  tracking-wider">Aspect Ratio</span>
+                                                            <div className="flex gap-2">
+                                                                {['free', '1:1', '3:4', '4:3', '16:9'].map(ratio => (
+                                                                    <button
+                                                                        key={ratio}
+                                                                        onClick={() => setCropAspect(ratio)}
+                                                                        className={`px-3 py-1.5 text-xs font-bold  transition-all border ${cropAspect === ratio
+                                                                            ? 'bg-primary-500 text-white border-zinc-200 shadow-sm'
+                                                                            : 'bg-transparent text-zinc-500 border-transparent hover:border-zinc-200 hover:text-zinc-800'
+                                                                            }`}
+                                                                    >
+                                                                        {ratio === 'free' ? 'Free' : ratio}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex gap-3">
+                                                            <button
+                                                                onClick={() => setCropRect(null)}
+                                                                className="px-4 py-2 bg-white hover:bg-zinc-100 border border-zinc-200 text-sm font-bold text-zinc-800 transition-colors shadow-sm active:shadow-none active:translate-x-[2px] active:translate-y-[2px]">
+                                                                RESET
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    if (!cropRect || !cropImageRef.current) return;
+                                                                    const img = cropImageRef.current;
+                                                                    const scaleX = img.naturalWidth / img.width;
+                                                                    const scaleY = img.naturalHeight / img.height;
+                                                                    const sx = Math.max(0, cropRect.x * scaleX);
+                                                                    const sy = Math.max(0, cropRect.y * scaleY);
+                                                                    const sw = Math.max(1, cropRect.w * scaleX);
+                                                                    const sh = Math.max(1, cropRect.h * scaleY);
+                                                                    const outCanvas = document.createElement('canvas');
+                                                                    outCanvas.width = Math.round(sw);
+                                                                    outCanvas.height = Math.round(sh);
+                                                                    const ctx = outCanvas.getContext('2d');
+                                                                    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, outCanvas.width, outCanvas.height);
+                                                                    outCanvas.toBlob(async (blob) => {
+                                                                        if (!blob) return;
+                                                                        const dataUrl = await blobToDataURL(blob);
+                                                                        updateImageUrl(cropState.type, cropState.id, dataUrl, cropState.groupId);
+                                                                        setCropState({ open: false, type: '', id: '', src: '', groupId: '' });
+                                                                        setCropRect(null);
+                                                                    }, 'image/jpeg', 0.92);
+                                                                }}
+                                                                className="px-6 py-2 bg-primary-500 hover:bg-primary-400 border border-zinc-200 text-white text-sm font-bold  shadow-sm active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all">
+                                                                Apply Crop
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )
+                                    }
+
+                                    {/* Header */}
+                                    <header className="flex items-center justify-between sticky top-0 z-40 bg-white border-b border-zinc-200 p-4 mb-8 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8">
+                                        <div className="flex items-center gap-6">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-primary-500 border border-zinc-200 flex items-center justify-center shadow-sm">
+                                                    <Icon name="zap" size={24} className="text-zinc-800" />
+                                                </div>
+                                                <h1 className="text-2xl font-bold text-zinc-800  ">
+                                                    BOOM <span className="not- text-sm font-bold px-2 py-0.5 bg-black text-white ml-1">v1.2</span>
+                                                </h1>
+                                            </div>
+                                            <nav className="flex items-center gap-2">
+                                                {['main', 'gallery'].map(tab => (
+                                                    <button
+                                                        key={tab}
+                                                        onClick={() => setActiveTab(tab)}
+                                                        className={`px-5 py-2 text-sm font-bold  transition-all duration-300 border border-zinc-200 ${activeTab === tab
+                                                            ? 'bg-black text-white shadow-sm'
+                                                            : 'bg-white text-zinc-800 hover:bg-primary-500 shadow-sm hover:-translate-y-1'
+                                                            }`}
+                                                    >
+                                                        {tab === 'main' ? 'Workspace' : 'Gallery'}
+                                                    </button>
+                                                ))}
+                                            </nav>
+                                        </div>
+                                        <div className="flex items-center gap-4">
+                                            {settings.autoSave && settings.saveMode === 'server' && (
+                                                <div className={`flex items-center gap-2 px-3 py-1.5 border border-zinc-200 ${serverStatus === 'connected' ? 'bg-green-400 text-zinc-800' :
+                                                    serverStatus === 'error' ? 'bg-red-400 text-zinc-800' :
+                                                        'bg-zinc-200 text-zinc-600'
+                                                    } font-bold shadow-sm`}>
+                                                    <div className={`w-3 h-3 border border-zinc-200 ${serverStatus === 'connected' ? 'bg-white animate-pulse' :
+                                                        serverStatus === 'error' ? 'bg-black' : 'bg-zinc-400'
+                                                        }`} />
+                                                    <span className="text-xs ">
+                                                        {serverStatus === 'connected' ? 'Online' : serverStatus === 'error' ? 'Offline' : 'Connecting...'}
+                                                    </span>
+                                                </div>
+                                            )}
+                                            <button onClick={() => setShowSettings(true)}
+                                                className="p-2.5 bg-white hover:bg-primary-500 hover:text-white transition-colors border border-zinc-200 group shadow-sm active:shadow-none active:translate-x-[2px] active:translate-y-[2px]">
+                                                <Icon name="settings" size={24} className="text-zinc-800 group-hover:rotate-90 transition-transform duration-500" />
+                                            </button>
+                                        </div>
+                                    </header>
+
+                                    {
+                                        activeTab === 'main' && (
+                                            <main className="space-y-6 animate-fade-in">
+                                                <div className="flex items-center justify-between px-2">
+                                                    <h2 className="text-xl font-bold text-zinc-800 flex items-center gap-2   ">
+                                                        <Icon name="layers" size={24} className="text-zinc-800" />
+                                                        Image Groups
+                                                    </h2>
+                                                    <button
+                                                        onClick={addGroup}
+                                                        className="px-4 py-2 bg-black text-white text-sm font-bold  transition-all shadow-sm active:shadow-none active:translate-x-[2px] active:translate-y-[2px] flex items-center gap-2 border border-zinc-200 hover:bg-zinc-800">
+                                                        <Icon name="plus" size={16} />
+                                                        New Group
+                                                    </button>
+                                                </div>
+
+                                                <div className="space-y-6">
+                                                    {groups.map((group, idx) => (
+                                                        <div key={group.id} className="soft-card bg-white p-0 overflow-hidden transition-all group-hover:shadow-hard-xl">
+                                                            <div className="p-5">
+                                                                <div className="flex items-center justify-between mb-5">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="flex items-center border border-zinc-200 p-1 shadow-sm">
+                                                                            <button onClick={() => toggleGroupCollapse(group.id)} className="p-1 hover:bg-zinc-800 hover:text-white rounded-none text-zinc-800 transition-colors">
+                                                                                <Icon name={group.collapsed ? 'chevron-right' : 'chevron-down'} size={14} />
+                                                                            </button>
+                                                                        </div>
+                                                                        <input
+                                                                            value={group.name}
+                                                                            onChange={e => renameGroup(group.id, e.target.value)}
+                                                                            className="bg-transparent border-b-2 border-transparent hover:border-zinc-200 focus:border-primary-500 px-1 py-0.5 text-lg font-bold text-zinc-800 transition-all outline-none w-48 focus:bg-yellow-100 rounded-none "
+                                                                        />
+                                                                        <div className="h-6 w-0.5 bg-black mx-1" />
+                                                                        <div className="flex gap-1">
+                                                                            <button onClick={() => moveGroup(group.id, 'up')} className="p-1.5 border border-transparent hover:border-zinc-200 hover:bg-zinc-100 text-zinc-800 transition-all" title="Move Up"><Icon name="arrow-up" size={14} /></button>
+                                                                            <button onClick={() => moveGroup(group.id, 'down')} className="p-1.5 border border-transparent hover:border-zinc-200 hover:bg-zinc-100 text-zinc-800 transition-all" title="Move Down"><Icon name="arrow-down" size={14} /></button>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-3">
+                                                                        <button
+                                                                            onClick={() => startBatch(group.id)}
+                                                                            className="px-4 py-1.5 bg-yellow-300 hover:bg-yellow-400 text-zinc-800 text-xs font-bold  transition-colors border border-zinc-200 shadow-sm active:shadow-none active:translate-x-[1px] active:translate-y-[1px] flex items-center gap-2">
+                                                                            <Icon name="play" size={12} />
+                                                                            Run Group
+                                                                        </button>
+                                                                        {groups.length > 1 && (
+                                                                            <button onClick={() => removeGroup(group.id)} className="p-2 hover:bg-red-500 hover:text-white border border-transparent hover:border-zinc-200 text-zinc-500 transition-colors">
+                                                                                <Icon name="trash-2" size={16} />
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+
+                                                                {!group.collapsed ? (
+                                                                    <div className="animate-slide-up">
+                                                                        <div className="flex gap-6 mb-5">
+                                                                            <ImageDropZone type="clothing" images={group.clothingImages} title="Clothing Images" groupId={group.id} />
+                                                                            <div className="w-0.5 bg-black my-4" />
+                                                                            <ImageDropZone type="model" images={group.modelImages} title="Model Images" groupId={group.id} />
+                                                                        </div>
+
+                                                                        {(settings.pairingMode === 'pair' && group.clothingImages.length !== group.modelImages.length && group.clothingImages.length > 0 && group.modelImages.length > 0) && (
+                                                                            <div className="flex items-center gap-2 text-xs font-bold text-zinc-800 bg-yellow-300 border border-zinc-200 px-4 py-3 shadow-sm">
+                                                                                <Icon name="alert-triangle" size={16} />
+                                                                                MISMATCH: {group.clothingImages.length} clothing vs {group.modelImages.length} models.
+                                                                            </div>
+                                                                        )}
+                                                                        {settings.pairingMode === 'fixedModel' && group.modelImages.length > 0 && (
+                                                                            <div className="flex items-center gap-2 text-xs font-bold text-zinc-800 bg-blue-200 border border-zinc-200 px-4 py-3 shadow-sm">
+                                                                                <Icon name="info" size={16} />
+                                                                                Fixed Model Mode: Using first model image for all tasks.
+                                                                            </div>
+                                                                        )}
+                                                                        {settings.pairingMode === 'fixedClothing' && group.clothingImages.length > 0 && (
+                                                                            <div className="flex items-center gap-2 text-xs font-bold text-zinc-800 bg-blue-200 border border-zinc-200 px-4 py-3 shadow-sm">
+                                                                                <Icon name="info" size={16} />
+                                                                                Fixed Clothing Mode: Using first clothing image for all tasks.
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="text-xs font-bold text-zinc-500 flex items-center gap-4 pl-1 ">
+                                                                        <span className="flex items-center gap-1"><Icon name="package" size={12} /> {group.clothingImages.length} Clothing</span>
+                                                                        <span className="flex items-center gap-1"><Icon name="user" size={12} /> {group.modelImages.length} Models</span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+
+                                                {/* Control Bar */}
+                                                <div className="sticky bottom-6 z-30">
+                                                    <div className="soft-card bg-white p-4 flex items-center gap-5 border border-zinc-200 shadow-hard-xl">
+                                                        <button
+                                                            onClick={() => startBatch()}
+                                                            disabled={isRunning || !groups.some(g => g.clothingImages.length > 0)}
+                                                            className="grow bg-primary-500 hover:bg-primary-400 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-zinc-300 px-6 py-4 font-bold text-white  text-xl border border-zinc-200 shadow-hard-md active:shadow-none active:translate-x-[2px] active:translate-y-[2px] flex items-center justify-center gap-3 transition-all"
+                                                        >
+                                                            {isRunning ? <Icon name="loader" size={24} className="animate-spin" /> : <Icon name="play" size={24} fill="currentColor" />}
+                                                            <span className="">Start Generation</span>
+                                                        </button>
+
+                                                        {isRunning && (
+                                                            <button onClick={stopBatch}
+                                                                className="bg-red-500 hover:bg-red-400 text-zinc-800 border border-zinc-200 px-6 py-4 font-bold  flex items-center gap-2 transition-colors shadow-sm active:shadow-none active:translate-x-[2px] active:translate-y-[2px]">
+                                                                <Icon name="square" size={20} fill="currentColor" />
+                                                                Stop
+                                                            </button>
+                                                        )}
+
+                                                        <div className="h-10 w-0.5 bg-black" />
+
+                                                        <div className="flex flex-col gap-1.5 min-w-[180px]">
+                                                            <span className="text-[10px]  tracking-wider text-zinc-800 font-bold ml-1">Pairing Mode</span>
+                                                            <div className="flex bg-zinc-100 p-1 border border-zinc-200">
+                                                                {[
+                                                                    { id: 'pair', label: '1:1', icon: 'git-merge' },
+                                                                    { id: 'fixedModel', label: 'Fix Model', icon: 'user' },
+                                                                    { id: 'fixedClothing', label: 'Fix Cloth', icon: 'shirt' }
+                                                                ].map(mode => (
+                                                                    <button
+                                                                        key={mode.id}
+                                                                        onClick={() => setSettings(s => ({ ...s, pairingMode: mode.id }))}
+                                                                        className={`flex-1 py-1.5 text-xs font-bold  transition-all flex items-center justify-center gap-1.5 border ${settings.pairingMode === mode.id
+                                                                            ? 'bg-black text-white border-zinc-200 shadow-sm'
+                                                                            : 'bg-transparent text-zinc-500 border-transparent hover:border-zinc-200 hover:text-zinc-800'
+                                                                            }`}
+                                                                        title={mode.label}
+                                                                    >
+                                                                        <Icon name={mode.icon} size={12} />
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Task Status */}
+                                                {tasks.length > 0 && (
+                                                    <div className="soft-card bg-white p-6 animate-slide-up border border-zinc-200 shadow-lg">
+                                                        <div className="flex items-center justify-between mb-4">
+                                                            <div className="flex items-center gap-4">
+                                                                <div className="text-xl font-bold text-zinc-800  ">Task Queue</div>
+                                                                <div className="flex gap-2 text-xs font-bold font-mono bg-zinc-100 px-2 py-1 border border-zinc-200 text-zinc-800 shadow-sm">
+                                                                    <span className="text-zinc-500">Q: {stats.pending}</span>
+                                                                    <span className="text-zinc-800">|</span>
+                                                                    <span className="text-yellow-600">RUN: {stats.processing}</span>
+                                                                    <span className="text-zinc-800">|</span>
+                                                                    <span className="text-green-600">OK: {stats.completed}</span>
+                                                                    <span className="text-zinc-800">|</span>
+                                                                    <span className="text-red-600">ERR: {stats.failed}</span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <div className="text-2xl font-bold text-zinc-800 font-mono">
+                                                                    {stats.percent}%
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="h-4 bg-white border border-zinc-200 mb-6 relative">
+                                                            <div className="h-full bg-primary-500 transition-all duration-300 ease-linear border-r-2 border-zinc-200" style={{ width: `${stats.percent}%` }} />
+                                                        </div>
+
+                                                        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4">
+                                                            {tasks.map((task, idx) => <TaskCard key={task.id} task={task} index={idx} />)}
+                                                        </div>
+
+                                                        {stats.completed > 0 && (
+                                                            <div className="flex gap-4 mt-6 pt-6 border-t-2 border-zinc-200">
+                                                                <button onClick={downloadAll}
+                                                                    className="px-5 py-2.5 bg-black text-white hover:bg-zinc-800 border border-zinc-200 text-sm font-bold  transition-colors flex items-center gap-2 shadow-sm active:shadow-none active:translate-x-[2px] active:translate-y-[2px]">
+                                                                    <Icon name="download" size={16} />
+                                                                    Download All ({stats.completed})
+                                                                </button>
+                                                                {stats.failed > 0 && (
+                                                                    <button onClick={retryFailed}
+                                                                        className="px-5 py-2.5 bg-red-500 hover:bg-red-400 border border-zinc-200 text-zinc-800 text-sm font-bold  transition-colors flex items-center gap-2 shadow-sm active:shadow-none active:translate-x-[2px] active:translate-y-[2px]">
+                                                                        <Icon name="refresh-cw" size={16} />
+                                                                        Retry Failed ({stats.failed})
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </main>
+                                        )}
+
+                                    {activeTab === 'gallery' && (
+                                        <div className="soft-card bg-white p-6 min-h-[500px] animate-fade-in border border-zinc-200 shadow-lg">
+                                            <div className="flex items-center justify-between mb-8">
+                                                <h2 className="text-2xl font-bold text-zinc-800 flex items-center gap-2   ">
+                                                    <Icon name="grid" size={24} className="text-zinc-800" />
+                                                    Gallery ({galleryItems.length})
+                                                </h2>
+                                                <div className="flex bg-zinc-100 p-1 border border-zinc-200 shadow-sm">
+                                                    <button className="px-3 py-1.5 text-xs font-bold text-white bg-black border border-zinc-200 shadow-sm -translate-y-0.5 -translate-x-0.5">GRID</button>
+                                                    <button className="px-3 py-1.5 text-xs font-bold text-zinc-500 hover:text-zinc-800 transition-colors">LIST</button>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-wrap items-center gap-3 mb-6 p-4 bg-zinc-100 border border-zinc-200 shadow-sm">
+                                                <span className="text-xs font-bold text-zinc-800  tracking-wider mr-2">Actions</span>
+                                                <button onClick={() => setGallerySelected(new Set(galleryItems.map(i => i.id)))}
+                                                    className="px-3 py-1.5 bg-white hover:bg-zinc-50 border border-zinc-200 text-xs font-bold  text-zinc-800 transition-colors shadow-sm active:shadow-none active:translate-x-[1px] active:translate-y-[1px]">
+                                                    Select All
+                                                </button>
+                                                <button onClick={() => setGallerySelected(new Set())}
+                                                    className="px-3 py-1.5 bg-white hover:bg-zinc-50 border border-zinc-200 text-xs font-bold  text-zinc-500 hover:text-zinc-800 transition-colors shadow-sm active:shadow-none active:translate-x-[1px] active:translate-y-[1px]">
+                                                    Deselect
+                                                </button>
+                                                <div className="h-6 w-0.5 bg-black mx-2" />
+                                                <button onClick={() => downloadGalleryItems(galleryItems.filter(i => gallerySelected.has(i.id)))}
+                                                    disabled={gallerySelected.size === 0}
+                                                    className="px-3 py-1.5 bg-primary-500 hover:bg-primary-400 border border-zinc-200 text-xs font-bold  text-white transition-colors disabled:opacity-50 disabled:bg-zinc-300 shadow-sm active:shadow-none active:translate-x-[1px] active:translate-y-[1px]">
+                                                    Download Selected
+                                                </button>
+                                                <button onClick={() => {
+                                                    const items = galleryItems.filter(i => gallerySelected.has(i.id));
+                                                    items.forEach(i => regenSingle(i.clothingUrl, i.modelUrl, i.clothingName, i.modelName));
+                                                }}
+                                                    disabled={gallerySelected.size === 0}
+                                                    className="px-3 py-1.5 bg-black hover:bg-zinc-800 border border-zinc-200 text-xs font-bold  text-white transition-colors disabled:opacity-50 shadow-sm active:shadow-none active:translate-x-[1px] active:translate-y-[1px]">
+                                                    Regenerate Selected
+                                                </button>
+                                            </div>
+
+                                            {galleryItems.length === 0 ? (
+                                                <div className="flex flex-col items-center justify-center py-20 text-zinc-800 border border-dashed border-zinc-200 bg-zinc-50">
+                                                    <Icon name="image" size={48} className="mb-4 opacity-20" />
+                                                    <p className="font-bold ">No images in gallery yet.</p>
+                                                </div>
+                                            ) : (
+                                                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+                                                    {galleryItems.map((item, idx) => (
+                                                        <div key={item.id} className="relative group aspect-[3/4] border border-zinc-200 bg-zinc-100 overflow-hidden cursor-pointer shadow-sm hover:shadow-hard-md transition-all hover:-translate-y-1"
+                                                            onClick={() => {
+                                                                const next = new Set(gallerySelected);
+                                                                if (next.has(item.id)) next.delete(item.id);
+                                                                else next.add(item.id);
+                                                                setGallerySelected(next);
+                                                            }}>
+                                                            <img src={item.url} loading="lazy" className="w-full h-full object-cover transition-transform duration-500" />
+                                                            <div className={`absolute inset-0 bg-white/80 transition-opacity duration-200 border-4 border-primary-500 ${gallerySelected.has(item.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                                                                <div className="absolute top-2 left-2">
+                                                                    <div className={`w-5 h-5 border border-zinc-200 ${gallerySelected.has(item.id) ? 'bg-primary-500' : 'bg-white'}`}>
+                                                                        {gallerySelected.has(item.id) && <Icon name="check" size={16} className="text-zinc-800" />}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="absolute bottom-0 inset-x-0 p-3 flex justify-center gap-2 items-center h-full">
+                                                                    <button onClick={(e) => { e.stopPropagation(); setPreviewModalUrl(item.url); }} className="p-2 bg-black text-white border border-zinc-200 shadow-sm hover:scale-110 transition-transform">
+                                                                        <Icon name="eye" size={20} />
+                                                                    </button>
+                                                                    <button onClick={(e) => { e.stopPropagation(); regenSingle(item.clothingUrl, item.modelUrl, item.clothingName, item.modelName); }} className="p-2 bg-primary-500 text-white border border-zinc-200 shadow-sm hover:scale-110 transition-transform">
+                                                                        <Icon name="refresh-cw" size={20} />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    <footer className="text-center text-zinc-800 font-bold text-xs py-8 border-t-2 border-zinc-200 mt-8">
+                                        <p>© 2024 BOOM AI Virtual Try-on • Powered by Flux Model & Soft Minimal</p>
+                                    </footer>
+                                </div >
+                            </div >
+                        );
+        };
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+
+</html>
