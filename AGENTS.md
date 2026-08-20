@@ -98,6 +98,63 @@ AI 虚拟试衣批量处理工具（BOOM AI Try-on Studio），参考原始 HTML
 - 所有数据存储在浏览器 localStorage，无需后端数据库
 - API 调用直接在前端发起（OpenAI 兼容格式）
 - 图片以 base64 格式存储和传输
+- 支持静态导出，可在本地独立运行
+
+## 本地独立运行
+
+本项目支持导出为纯静态文件，可在本地浏览器中直接打开或通过任意静态服务器运行。
+
+### 构建静态版本
+
+```bash
+# 安装依赖
+pnpm install
+
+# 构建静态文件
+pnpm build
+```
+
+构建完成后，静态文件输出到 `out/` 目录，包含 `index.html` 和所有必要的资源文件。
+
+### 运行方式
+
+**方式 1：直接打开 HTML 文件**
+```bash
+# 直接用浏览器打开
+open out/index.html  # macOS
+start out/index.html # Windows
+xdg-open out/index.html  # Linux
+```
+
+**方式 2：使用本地静态服务器**
+```bash
+# 使用 serve（推荐）
+pnpm serve
+# 或手动安装
+npx serve out -p 3000
+
+# 使用 Python
+python3 -m http.server 3000 --directory out
+
+# 使用 Node.js
+npx http-server out -p 3000
+```
+
+然后在浏览器访问 `http://localhost:3000`
+
+### 本地使用注意事项
+
+1. **API 配置**：在设置面板中配置你的 OpenAI 兼容 API 地址和密钥
+2. **数据存储**：所有数据（图片、设置、任务历史）存储在浏览器 localStorage 中
+3. **跨域问题**：如果 API 服务器有 CORS 限制，需要确保允许本地访问
+4. **图片大小**：localStorage 有容量限制（通常 5-10MB），大量图片建议使用外部存储
+
+### 部署到静态托管
+
+可以将 `out/` 目录部署到以下静态托管服务：
+- Vercel / Netlify / Cloudflare Pages
+- GitHub Pages
+- 任何支持静态文件的 Web 服务器
 - 使用 Outfit（标题）+ Inter（正文）字体组合
 
 ### 关键入口
