@@ -181,4 +181,10 @@ export const DEFAULT_VIDEO_SETTINGS: VideoSettings = {
   defaultPosition: 'center',
   defaultAngle: 'front',
   defaultScene: 'indoor',
+  modelPosition: 'center',
+  modelAngle: 'front',
+  scene: 'indoor',
+  prompt: '',
+  keywords: '',
+  customPrompt: '',
 };

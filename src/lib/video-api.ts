@@ -1,4 +1,4 @@
-import type { VideoTask, VideoSettings } from './types';
+import type { VideoTask, VideoSettings, VideoPosition, VideoAngle, VideoScene } from './types';
 import { generateId } from './utils';
 
 const PIKA_API_BASE = 'https://api.pika.art';
@@ -8,7 +8,7 @@ export async function generateVideo(
   modelImg: { data: string; name: string },
   settings: VideoSettings
 ): Promise<string> {
-  const { pikaApiKey, duration, fps, resolution, position = 'center', angle = 'front', scene = 'indoor', keywords = '', customPrompt = '' } = settings;
+  const { pikaApiKey, duration, fps, resolution, modelPosition = 'center', modelAngle = 'front', scene = 'indoor', keywords = '', prompt = '' } = settings;
 
   if (!pikaApiKey) {
     throw new Error('请先在设置中配置 Pika API Key');
@@ -16,10 +16,10 @@ export async function generateVideo(
 
   // 构建完整的提示词，包含坑位和关键词信息
   const sceneDesc = scene === 'indoor' ? '室内摄影棚' : scene === 'outdoor' ? '户外自然光' : scene === 'runway' ? '时装秀 T 台' : '纯色背景';
-  const positionDesc = position === 'left' ? '左侧' : position === 'right' ? '右侧' : '中间';
-  const angleDesc = angle === 'front' ? '正面' : angle === 'side' ? '侧面' : '背面';
+  const positionDesc = modelPosition === 'left' ? '左侧' : modelPosition === 'right' ? '右侧' : '中间';
+  const angleDesc = modelAngle === 'front' ? '正面' : modelAngle === 'side' ? '侧面' : '背面';
 
-  const fullPrompt = `A fashion model wearing the clothing from the first image, posing naturally. The model should showcase the outfit with subtle movements like turning slightly or adjusting the pose. High quality, realistic, professional fashion photography style.\n\n场景：${sceneDesc}，模特位置：${positionDesc}，展示角度：${angleDesc}${keywords ? `\n关键词：${keywords}` : ''}${customPrompt ? `\n自定义描述：${customPrompt}` : ''}`;
+  const fullPrompt = `A fashion model wearing the clothing from the first image, posing naturally. The model should showcase the outfit with subtle movements like turning slightly or adjusting the pose. High quality, realistic, professional fashion photography style.\n\n场景：${sceneDesc}，模特位置：${positionDesc}，展示角度：${angleDesc}${keywords ? `\n关键词：${keywords}` : ''}${prompt ? `\n自定义描述：${prompt}` : ''}`;
 
   // 创建视频生成任务
   const createResponse = await fetch(`${PIKA_API_BASE}/v1/video/generation`, {
@@ -95,9 +95,10 @@ export function createVideoTask(
   clothingImg: { data: string; name: string },
   modelImg: { data: string; name: string },
   settings?: {
-    position?: VideoPosition;
-    angle?: VideoAngle;
+    modelPosition?: VideoPosition;
+    modelAngle?: VideoAngle;
     scene?: VideoScene;
+    keywords?: string;
     prompt?: string;
   }
 ): VideoTask {
@@ -118,9 +119,10 @@ export function createVideoTask(
     videoUrl: null,
     error: null,
     createdAt: Date.now(),
-    position: settings?.position || 'center',
-    angle: settings?.angle || 'front',
-    scene: settings?.scene || 'studio',
-    prompt: settings?.prompt || '',
+    position: settings?.modelPosition || 'center',
+    angle: settings?.modelAngle || 'front',
+    scene: settings?.scene || 'indoor',
+    keywords: settings?.keywords || '',
+    customPrompt: settings?.prompt || '',
   };
 }

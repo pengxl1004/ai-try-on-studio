@@ -18,7 +18,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import type { VideoTask, VideoSettings } from '@/lib/types';
+import type { VideoTask, VideoSettings, VideoScene } from '@/lib/types';
 import { DEFAULT_VIDEO_SETTINGS } from '@/lib/types';
 import { generateVideo, createVideoTask } from '@/lib/video-api';
 import { generateId } from '@/lib/utils';
