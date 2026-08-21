@@ -125,9 +125,8 @@ export interface VideoTask {
 }
 
 export interface VideoSettings {
-  pikaApiKey: string;
+  falApiKey: string; // Fal.ai API Key
   duration: number; // 视频时长（秒）
-  fps: number; // 帧率
   resolution: string; // 分辨率
   // 默认坑位设置
   defaultPosition: VideoPosition;
@@ -174,9 +173,8 @@ export const QUICK_KEYWORDS = [
 ];
 
 export const DEFAULT_VIDEO_SETTINGS: VideoSettings = {
-  pikaApiKey: '',
-  duration: 4,
-  fps: 24,
+  falApiKey: '',
+  duration: 5,
   resolution: '1024x576',
   defaultPosition: 'center',
   defaultAngle: 'front',

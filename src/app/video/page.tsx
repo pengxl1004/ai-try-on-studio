@@ -86,8 +86,8 @@ export default function VideoPage() {
       return;
     }
 
-    if (!settings.pikaApiKey) {
-      alert('请先在设置中配置 Pika API Key');
+    if (!settings.falApiKey) {
+      alert('请先在设置中配置 Fal API Key');
       return;
     }
 
@@ -376,41 +376,45 @@ export default function VideoPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label>Pika API Key</Label>
+                  <Label>Fal API Key</Label>
                   <Input
                     type="password"
-                    value={settings.pikaApiKey}
+                    value={settings.falApiKey}
                     onChange={(e) =>
-                      setSettings((prev) => ({ ...prev, pikaApiKey: e.target.value }))
+                      setSettings((prev) => ({ ...prev, falApiKey: e.target.value }))
                     }
-                    placeholder="输入你的 Pika API Key"
+                    placeholder="输入你的 Fal API Key (从 fal.ai 获取)"
                   />
+                  <p className="text-xs text-slate-500 mt-1">
+                    从{' '}
+                    <a
+                      href="https://fal.ai/dashboard/keys"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-indigo-600 hover:underline"
+                    >
+                      fal.ai/dashboard/keys
+                    </a>
+                    {' '}获取 API Key
+                  </p>
                 </div>
 
                 <div>
-                  <Label>视频时长：{settings.duration} 秒</Label>
-                  <Slider
-                    value={[settings.duration]}
-                    onValueChange={(value) =>
-                      setSettings((prev) => ({ ...prev, duration: value[0] }))
-                    }
-                    min={2}
-                    max={10}
-                    step={1}
-                  />
-                </div>
-
-                <div>
-                  <Label>帧率：{settings.fps} FPS</Label>
-                  <Slider
-                    value={[settings.fps]}
-                    onValueChange={(value) =>
-                      setSettings((prev) => ({ ...prev, fps: value[0] }))
-                    }
-                    min={12}
-                    max={60}
-                    step={6}
-                  />
+                  <Label>视频时长</Label>
+                  <div className="grid grid-cols-2 gap-2 mt-1">
+                    {[5, 10].map((dur) => (
+                      <Button
+                        key={dur}
+                        variant={settings.duration === dur ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() =>
+                          setSettings((prev) => ({ ...prev, duration: dur }))
+                        }
+                      >
+                        {dur} 秒
+                      </Button>
+                    ))}
+                  </div>
                 </div>
 
                 <div>
@@ -422,9 +426,8 @@ export default function VideoPage() {
                       setSettings((prev) => ({ ...prev, resolution: e.target.value }))
                     }
                   >
-                    <option value="512x512">512x512 (方形)</option>
-                    <option value="1024x576">1024x576 (16:9)</option>
-                    <option value="576x1024">576x1024 (9:16)</option>
+                    <option value="1024x576">720p (16:9)</option>
+                    <option value="1920x1080">1080p (16:9)</option>
                   </select>
                 </div>
 

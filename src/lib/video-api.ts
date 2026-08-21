@@ -1,17 +1,18 @@
 import type { VideoTask, VideoSettings, VideoPosition, VideoAngle, VideoScene } from './types';
 import { generateId } from './utils';
 
-const PIKA_API_BASE = 'https://api.pika.art';
+const FAL_API_BASE = 'https://queue.fal.run';
+const FAL_MODEL = 'fal-ai/pika/v2.2/image-to-video';
 
 export async function generateVideo(
   clothingImg: { data: string; name: string },
   modelImg: { data: string; name: string },
   settings: VideoSettings
 ): Promise<string> {
-  const { pikaApiKey, duration, fps, resolution, modelPosition = 'center', modelAngle = 'front', scene = 'indoor', keywords = '', prompt = '' } = settings;
+  const { falApiKey, duration, resolution, modelPosition = 'center', modelAngle = 'front', scene = 'indoor', keywords = '', prompt = '' } = settings;
 
-  if (!pikaApiKey) {
-    throw new Error('请先在设置中配置 Pika API Key');
+  if (!falApiKey) {
+    throw new Error('请先在设置中配置 Fal API Key');
   }
 
   // 构建完整的提示词，包含坑位和关键词信息
@@ -19,22 +20,23 @@ export async function generateVideo(
   const positionDesc = modelPosition === 'left' ? '左侧' : modelPosition === 'right' ? '右侧' : '中间';
   const angleDesc = modelAngle === 'front' ? '正面' : modelAngle === 'side' ? '侧面' : '背面';
 
-  const fullPrompt = `A fashion model wearing the clothing from the first image, posing naturally. The model should showcase the outfit with subtle movements like turning slightly or adjusting the pose. High quality, realistic, professional fashion photography style.\n\n场景：${sceneDesc}，模特位置：${positionDesc}，展示角度：${angleDesc}${keywords ? `\n关键词：${keywords}` : ''}${prompt ? `\n自定义描述：${prompt}` : ''}`;
+  const fullPrompt = `A fashion model wearing the clothing, posing naturally. The model should showcase the outfit with subtle movements like turning slightly or adjusting the pose. High quality, realistic, professional fashion photography style.\n\n场景：${sceneDesc}，模特位置：${positionDesc}，展示角度：${angleDesc}${keywords ? `\n关键词：${keywords}` : ''}${prompt ? `\n自定义描述：${prompt}` : ''}`;
+
+  // 将 base64 图片转换为 data URI（如果还不是）
+  const imageDataUri = modelImg.data.startsWith('data:') ? modelImg.data : `data:image/png;base64,${modelImg.data}`;
 
   // 创建视频生成任务
-  const createResponse = await fetch(`${PIKA_API_BASE}/v1/video/generation`, {
+  const createResponse = await fetch(`${FAL_API_BASE}/${FAL_MODEL}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${pikaApiKey}`,
+      'Authorization': `Key ${falApiKey}`,
     },
     body: JSON.stringify({
-      model: 'pika-2',
+      image_url: imageDataUri,
       prompt: fullPrompt,
-      images: [clothingImg.data, modelImg.data],
-      duration: duration,
-      fps: fps,
-      resolution: resolution,
+      resolution: resolution === '1024x576' ? '720p' : '1080p',
+      duration: duration >= 7 ? 10 : 5,
       negative_prompt: 'low quality, blurry, distorted, unrealistic',
     }),
   });
@@ -45,23 +47,23 @@ export async function generateVideo(
   }
 
   const createData = await createResponse.json();
-  const taskId = createData.data?.id || createData.id;
+  const requestId = createData.request_id;
 
-  if (!taskId) {
+  if (!requestId) {
     throw new Error('未能获取视频任务 ID');
   }
 
   // 轮询任务状态
-  return await pollVideoStatus(taskId, pikaApiKey);
+  return await pollVideoStatus(requestId, falApiKey);
 }
 
-async function pollVideoStatus(taskId: string, apiKey: string, maxAttempts = 60): Promise<string> {
+async function pollVideoStatus(requestId: string, apiKey: string, maxAttempts = 60): Promise<string> {
   for (let i = 0; i < maxAttempts; i++) {
     await new Promise(resolve => setTimeout(resolve, 5000)); // 每 5 秒检查一次
 
-    const statusResponse = await fetch(`${PIKA_API_BASE}/v1/video/generation/${taskId}`, {
+    const statusResponse = await fetch(`${FAL_API_BASE}/${FAL_MODEL}/requests/${requestId}/status`, {
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        'Authorization': `Key ${apiKey}`,
       },
     });
 
@@ -70,22 +72,35 @@ async function pollVideoStatus(taskId: string, apiKey: string, maxAttempts = 60)
     }
 
     const statusData = await statusResponse.json();
-    const status = statusData.data?.status || statusData.status;
+    const status = statusData.status;
 
-    if (status === 'completed' || status === 'succeeded') {
-      const videoUrl = statusData.data?.video_url || statusData.video_url || statusData.data?.url || statusData.url;
+    if (status === 'COMPLETED') {
+      // 获取结果
+      const resultResponse = await fetch(`${FAL_API_BASE}/${FAL_MODEL}/requests/${requestId}`, {
+        headers: {
+          'Authorization': `Key ${apiKey}`,
+        },
+      });
+
+      if (!resultResponse.ok) {
+        throw new Error('获取视频结果失败');
+      }
+
+      const resultData = await resultResponse.json();
+      const videoUrl = resultData.video?.url;
+
       if (videoUrl) {
         return videoUrl;
       }
       throw new Error('视频生成完成但未返回视频 URL');
     }
 
-    if (status === 'failed' || status === 'error') {
-      const errorMsg = statusData.data?.error || statusData.error || '视频生成失败';
+    if (status === 'FAILED') {
+      const errorMsg = statusData.error || '视频生成失败';
       throw new Error(errorMsg);
     }
 
-    // 继续等待 (status === 'processing' || status === 'pending')
+    // 继续等待 (status === 'IN_QUEUE' || status === 'IN_PROGRESS')
   }
 
   throw new Error('视频生成超时，请稍后重试');
