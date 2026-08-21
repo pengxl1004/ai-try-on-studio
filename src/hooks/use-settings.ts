@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import type { AppSettings } from '@/lib/types';
 import { DEFAULT_SETTINGS } from '@/lib/types';
 
 const STORAGE_KEY = 'tryon_settings';
 
 function loadSettings(): AppSettings {
+  if (typeof window === 'undefined') return DEFAULT_SETTINGS;
   try {
-    if (typeof window === 'undefined') return DEFAULT_SETTINGS;
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
@@ -17,36 +17,25 @@ function loadSettings(): AppSettings {
       }
     }
   } catch {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(STORAGE_KEY);
-    }
+    // ignore parse errors
   }
   return DEFAULT_SETTINGS;
 }
 
 export function useSettings() {
-  const [settings, setSettingsRaw] = useState<AppSettings>(DEFAULT_SETTINGS);
-  const initialized = useRef(false);
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
 
   useEffect(() => {
-    if (!initialized.current) {
-      initialized.current = true;
-      setSettingsRaw(loadSettings());
-    }
-  }, []);
-
-  const setSettings = useCallback((updater: AppSettings | ((prev: AppSettings) => AppSettings)) => {
-    setSettingsRaw(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      return next;
-    });
+    setSettings(loadSettings());
   }, []);
 
   useEffect(() => {
-    if (initialized.current) {
+    if (typeof window !== 'undefined') {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-      } catch { /* ignore */ }
+      } catch {
+        // ignore storage errors
+      }
     }
   }, [settings]);
 
