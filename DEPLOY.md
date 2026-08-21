@@ -1,15 +1,45 @@
 # 部署指南 - 获取永久链接
 
-## 方案 1：Vercel 部署（推荐，最简单）
+## 快速部署到 Vercel（推荐）
 
-### 步骤：
-1. 访问 https://vercel.com
-2. 使用 GitHub 账号登录
-3. 点击 "Add New Project"
-4. 导入你的 Git 仓库（或上传代码）
-5. Vercel 会自动检测 Next.js 项目
-6. 点击 "Deploy"
-7. 部署完成后会获得一个永久链接：`https://your-project.vercel.app`
+### 方式 1：通过 Vercel 控制台部署（最简单）
+
+1. **访问** https://vercel.com/new
+2. **登录**（推荐用 GitHub 账号）
+3. **导入项目**：
+   - 点击 "Import Git Repository"
+   - 连接你的 GitHub 账号
+   - 选择你的项目仓库
+4. **配置构建设置**（Vercel 会自动检测 Next.js）：
+   - Framework Preset: `Next.js`
+   - Build Command: `pnpm build`
+   - Output Directory: `out`
+   - Install Command: `pnpm install`
+5. **点击 Deploy**
+6. **等待部署完成**（约 1-2 分钟）
+7. **获得永久链接**：`https://你的项目名.vercel.app`
+
+### 方式 2：通过命令行部署
+
+```bash
+# 1. 安装 Vercel CLI
+npm install -g vercel@latest
+
+# 2. 登录 Vercel
+vercel login
+
+# 3. 部署到生产环境
+vercel --prod
+```
+
+首次部署会提示你配置项目，按提示操作即可。
+
+### 方式 3：使用部署脚本
+
+```bash
+chmod +x deploy-vercel.sh
+./deploy-vercel.sh
+```
 
 ### 特点：
 - ✅ 永久有效
