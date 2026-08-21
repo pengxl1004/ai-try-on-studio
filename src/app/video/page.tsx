@@ -45,6 +45,20 @@ function loadVideoTasks(): VideoTask[] {
   }
 }
 
+function saveTasksToStorage(tasks: VideoTask[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    // 只保留最近 10 个任务，避免存储溢出
+    const tasksToSave = tasks.slice(0, 10).map(t => ({
+      ...t,
+      videoUrl: undefined, // 不保存视频 URL，太长
+    }));
+    localStorage.setItem(TASKS_KEY, JSON.stringify(tasksToSave));
+  } catch (e) {
+    console.warn('Failed to save tasks to localStorage:', e);
+  }
+}
+
 export default function VideoPage() {
   const [clothingImg, setClothingImg] = useState<{ data: string; name: string } | null>(null);
   const [modelImg, setModelImg] = useState<{ data: string; name: string } | null>(null);
@@ -116,7 +130,7 @@ export default function VideoPage() {
             ? { ...t, status: 'completed' as const, progress: 100, videoUrl }
             : t
         );
-        localStorage.setItem(TASKS_KEY, JSON.stringify(updated));
+        saveTasksToStorage(updated);
         return updated;
       });
     } catch (error) {
@@ -127,7 +141,7 @@ export default function VideoPage() {
             ? { ...t, status: 'failed' as const, progress: 0, error: errorMsg }
             : t
         );
-        localStorage.setItem(TASKS_KEY, JSON.stringify(updated));
+        saveTasksToStorage(updated);
         return updated;
       });
     } finally {
@@ -138,14 +152,20 @@ export default function VideoPage() {
   const handleDeleteTask = useCallback((taskId: string) => {
     setTasks(prev => {
       const updated = prev.filter(t => t.id !== taskId);
-      localStorage.setItem(TASKS_KEY, JSON.stringify(updated));
+      saveTasksToStorage(updated);
       return updated;
     });
   }, []);
 
   const handleSaveSettings = useCallback(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-    alert('设置已保存');
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+      alert('设置已保存');
+    } catch (e) {
+      console.warn('Failed to save settings:', e);
+      alert('保存设置失败');
+    }
   }, [settings]);
 
   return (
