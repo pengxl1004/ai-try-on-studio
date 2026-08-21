@@ -8,6 +8,7 @@ const STORAGE_KEY = 'tryon_settings';
 
 function loadSettings(): AppSettings {
   try {
+    if (typeof window === 'undefined') return DEFAULT_SETTINGS;
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
@@ -16,7 +17,9 @@ function loadSettings(): AppSettings {
       }
     }
   } catch {
-    localStorage.removeItem(STORAGE_KEY);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(STORAGE_KEY);
+    }
   }
   return DEFAULT_SETTINGS;
 }
