@@ -98,3 +98,31 @@ export const DEFAULT_SETTINGS: AppSettings = {
 };
 
 export const MAX_CONCURRENCY = 10;
+
+// 视频生成相关类型
+export type VideoTaskStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+export interface VideoTask {
+  id: string;
+  clothingImg: ImageItem;
+  modelImg: ImageItem;
+  status: VideoTaskStatus;
+  progress: number;
+  videoUrl: string | null;
+  error: string | null;
+  createdAt: number;
+}
+
+export interface VideoSettings {
+  pikaApiKey: string;
+  duration: number; // 视频时长（秒）
+  fps: number; // 帧率
+  resolution: string; // 分辨率
+}
+
+export const DEFAULT_VIDEO_SETTINGS: VideoSettings = {
+  pikaApiKey: '',
+  duration: 4,
+  fps: 24,
+  resolution: '1024x576',
+};

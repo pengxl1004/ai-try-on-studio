@@ -1,0 +1,433 @@
+'use client';
+
+import { useState, useCallback } from 'react';
+import { Video, Upload, Play, Download, Settings, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import type { VideoTask, VideoSettings } from '@/lib/types';
+import { DEFAULT_VIDEO_SETTINGS } from '@/lib/types';
+import { generateVideo, createVideoTask } from '@/lib/video-api';
+import { generateId } from '@/lib/utils';
+
+const STORAGE_KEY = 'ai-try-on-video-settings';
+const TASKS_KEY = 'ai-try-on-video-tasks';
+
+function loadVideoSettings(): VideoSettings {
+  if (typeof window === 'undefined') return DEFAULT_VIDEO_SETTINGS;
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      return { ...DEFAULT_VIDEO_SETTINGS, ...JSON.parse(saved) };
+    }
+  } catch {}
+  return DEFAULT_VIDEO_SETTINGS;
+}
+
+function loadVideoTasks(): VideoTask[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const saved = localStorage.getItem(TASKS_KEY);
+    return saved ? JSON.parse(saved) : [];
+  } catch {
+    return [];
+  }
+}
+
+export default function VideoPage() {
+  const [clothingImg, setClothingImg] = useState<{ data: string; name: string } | null>(null);
+  const [modelImg, setModelImg] = useState<{ data: string; name: string } | null>(null);
+  const [tasks, setTasks] = useState<VideoTask[]>([]);
+  const [settings, setSettings] = useState<VideoSettings>(DEFAULT_VIDEO_SETTINGS);
+  const [initialized, setInitialized] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // 初始化加载
+  if (!initialized && typeof window !== 'undefined') {
+    setInitialized(true);
+    setSettings(loadVideoSettings());
+    setTasks(loadVideoTasks());
+  }
+
+  const handleImageUpload = useCallback(
+    (type: 'clothing' | 'model', file: File) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const data = e.target?.result as string;
+        if (type === 'clothing') {
+          setClothingImg({ data, name: file.name });
+        } else {
+          setModelImg({ data, name: file.name });
+        }
+      };
+      reader.readAsDataURL(file);
+    },
+    []
+  );
+
+  const handleGenerate = useCallback(async () => {
+    if (!clothingImg || !modelImg) {
+      alert('请先上传服装图和模特图');
+      return;
+    }
+
+    if (!settings.pikaApiKey) {
+      alert('请先在设置中配置 Pika API Key');
+      return;
+    }
+
+    setIsGenerating(true);
+
+    const task = createVideoTask(clothingImg, modelImg);
+    const newTasks = [task, ...tasks];
+    setTasks(newTasks);
+
+    try {
+      // 更新状态为处理中
+      setTasks(prev =>
+        prev.map(t => (t.id === task.id ? { ...t, status: 'processing' as const, progress: 10 } : t))
+      );
+
+      const videoUrl = await generateVideo(clothingImg, modelImg, settings);
+
+      // 更新为完成
+      setTasks(prev => {
+        const updated = prev.map(t =>
+          t.id === task.id
+            ? { ...t, status: 'completed' as const, progress: 100, videoUrl }
+            : t
+        );
+        localStorage.setItem(TASKS_KEY, JSON.stringify(updated));
+        return updated;
+      });
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : '视频生成失败';
+      setTasks(prev => {
+        const updated = prev.map(t =>
+          t.id === task.id
+            ? { ...t, status: 'failed' as const, progress: 0, error: errorMsg }
+            : t
+        );
+        localStorage.setItem(TASKS_KEY, JSON.stringify(updated));
+        return updated;
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [clothingImg, modelImg, settings, tasks]);
+
+  const handleDeleteTask = useCallback((taskId: string) => {
+    setTasks(prev => {
+      const updated = prev.filter(t => t.id !== taskId);
+      localStorage.setItem(TASKS_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  const handleSaveSettings = useCallback(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    alert('设置已保存');
+  }, [settings]);
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
+      <div className="max-w-6xl mx-auto">
+        {/* 页面标题 */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
+            <Video className="w-8 h-8 text-indigo-600" />
+            AI 试衣视频生成
+          </h1>
+          <p className="text-slate-600 mt-2">上传服装图和模特图，生成模特展示视频</p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* 左侧：上传区域 */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* 图片上传 */}
+            <Card>
+              <CardHeader>
+                <CardTitle>上传图片</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  {/* 服装图上传 */}
+                  <div>
+                    <Label className="mb-2 block">服装图</Label>
+                    <div
+                      className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:border-indigo-500 transition-colors cursor-pointer"
+                      onClick={() => document.getElementById('clothing-upload')?.click()}
+                    >
+                      {clothingImg ? (
+                        <div className="space-y-2">
+                          <img
+                            src={clothingImg.data}
+                            alt={clothingImg.name}
+                            className="max-h-48 mx-auto rounded"
+                          />
+                          <p className="text-sm text-slate-600 truncate">{clothingImg.name}</p>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setClothingImg(null);
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <Upload className="w-8 h-8 mx-auto text-slate-400" />
+                          <p className="text-sm text-slate-600">点击上传服装图</p>
+                        </div>
+                      )}
+                    </div>
+                    <input
+                      id="clothing-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleImageUpload('clothing', file);
+                      }}
+                    />
+                  </div>
+
+                  {/* 模特图上传 */}
+                  <div>
+                    <Label className="mb-2 block">模特图</Label>
+                    <div
+                      className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:border-indigo-500 transition-colors cursor-pointer"
+                      onClick={() => document.getElementById('model-upload')?.click()}
+                    >
+                      {modelImg ? (
+                        <div className="space-y-2">
+                          <img
+                            src={modelImg.data}
+                            alt={modelImg.name}
+                            className="max-h-48 mx-auto rounded"
+                          />
+                          <p className="text-sm text-slate-600 truncate">{modelImg.name}</p>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setModelImg(null);
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <Upload className="w-8 h-8 mx-auto text-slate-400" />
+                          <p className="text-sm text-slate-600">点击上传模特图</p>
+                        </div>
+                      )}
+                    </div>
+                    <input
+                      id="model-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleImageUpload('model', file);
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* 生成按钮 */}
+                <Button
+                  className="w-full mt-6"
+                  size="lg"
+                  onClick={handleGenerate}
+                  disabled={!clothingImg || !modelImg || isGenerating}
+                >
+                  {isGenerating ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                      生成中...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4 mr-2" />
+                      生成视频
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* 任务列表 */}
+            <Card>
+              <CardHeader>
+                <CardTitle>生成任务</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {tasks.length === 0 ? (
+                  <p className="text-center text-slate-500 py-8">暂无生成任务</p>
+                ) : (
+                  <div className="space-y-4">
+                    {tasks.map((task) => (
+                      <div
+                        key={task.id}
+                        className="border border-slate-200 rounded-lg p-4 space-y-3"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              variant={
+                                task.status === 'completed'
+                                  ? 'default'
+                                  : task.status === 'failed'
+                                  ? 'destructive'
+                                  : 'secondary'
+                              }
+                            >
+                              {task.status === 'completed'
+                                ? '已完成'
+                                : task.status === 'failed'
+                                ? '失败'
+                                : task.status === 'processing'
+                                ? '生成中'
+                                : '等待中'}
+                            </Badge>
+                            <span className="text-sm text-slate-600">
+                              {new Date(task.createdAt).toLocaleString()}
+                            </span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteTask(task.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+
+                        {task.status === 'processing' && (
+                          <Progress value={task.progress} className="w-full" />
+                        )}
+
+                        {task.error && (
+                          <p className="text-sm text-red-600">{task.error}</p>
+                        )}
+
+                        {task.videoUrl && (
+                          <div className="space-y-2">
+                            <video
+                              src={task.videoUrl}
+                              controls
+                              className="w-full rounded-lg"
+                            />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => task.videoUrl && window.open(task.videoUrl, '_blank')}
+                            >
+                              <Download className="w-4 h-4 mr-2" />
+                              下载视频
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* 右侧：设置面板 */}
+          <div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="w-5 h-5" />
+                  视频设置
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label>Pika API Key</Label>
+                  <Input
+                    type="password"
+                    value={settings.pikaApiKey}
+                    onChange={(e) =>
+                      setSettings((prev) => ({ ...prev, pikaApiKey: e.target.value }))
+                    }
+                    placeholder="输入你的 Pika API Key"
+                  />
+                </div>
+
+                <div>
+                  <Label>视频时长：{settings.duration} 秒</Label>
+                  <Slider
+                    value={[settings.duration]}
+                    onValueChange={(value) =>
+                      setSettings((prev) => ({ ...prev, duration: value[0] }))
+                    }
+                    min={2}
+                    max={10}
+                    step={1}
+                  />
+                </div>
+
+                <div>
+                  <Label>帧率：{settings.fps} FPS</Label>
+                  <Slider
+                    value={[settings.fps]}
+                    onValueChange={(value) =>
+                      setSettings((prev) => ({ ...prev, fps: value[0] }))
+                    }
+                    min={12}
+                    max={60}
+                    step={6}
+                  />
+                </div>
+
+                <div>
+                  <Label>分辨率</Label>
+                  <select
+                    className="w-full mt-1 p-2 border border-slate-300 rounded"
+                    value={settings.resolution}
+                    onChange={(e) =>
+                      setSettings((prev) => ({ ...prev, resolution: e.target.value }))
+                    }
+                  >
+                    <option value="512x512">512x512 (方形)</option>
+                    <option value="1024x576">1024x576 (16:9)</option>
+                    <option value="576x1024">576x1024 (9:16)</option>
+                  </select>
+                </div>
+
+                <Button className="w-full" onClick={handleSaveSettings}>
+                  保存设置
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Settings, Zap, Layers, Play, Square, Plus, GalleryHorizontal, Sparkles } from 'lucide-react';
+import { Settings, Zap, Layers, Play, Square, Plus, GalleryHorizontal, Sparkles, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ImageGroupCard } from '@/components/image-group-card';
 import { TaskQueue } from '@/components/task-queue';
 import { SettingsDialog } from '@/components/settings-dialog';
 import { Gallery } from '@/components/gallery';
 import { PreviewModal } from '@/components/preview-modal';
+import VideoPage from '@/app/video/page';
 import { useSettings } from '@/hooks/use-settings';
 import { useImageGroups } from '@/hooks/use-image-groups';
 import { useTaskQueue } from '@/hooks/use-task-queue';
@@ -15,7 +16,7 @@ import type { GalleryItem, Task, GenerationMode } from '@/lib/types';
 import { GENERATION_MODE_LABELS } from '@/lib/types';
 import { generateId, downloadImagesSequentially } from '@/lib/utils';
 
-type ActiveTab = 'workspace' | 'gallery';
+type ActiveTab = 'workspace' | 'gallery' | 'video';
 
 export default function HomePage() {
   const [settings, setSettings] = useSettings();
@@ -173,6 +174,17 @@ export default function HomePage() {
                     </span>
                   )}
                 </button>
+                <button
+                  onClick={() => setActiveTab('video')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === 'video'
+                      ? 'bg-slate-800 text-white'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Video className="w-4 h-4" />
+                  视频生成
+                </button>
               </nav>
             </div>
             <div className="flex items-center gap-3">
@@ -296,6 +308,10 @@ export default function HomePage() {
             onRemoveItem={(id) => setGalleryItems(prev => prev.filter(i => i.id !== id))}
             onClearAll={() => setGalleryItems([])}
           />
+        )}
+
+        {activeTab === 'video' && (
+          <VideoPage />
         )}
       </main>
 
