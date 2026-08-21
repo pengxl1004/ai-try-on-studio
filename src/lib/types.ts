@@ -102,6 +102,10 @@ export const MAX_CONCURRENCY = 10;
 // 视频生成相关类型
 export type VideoTaskStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
+export type VideoPosition = 'left' | 'center' | 'right';
+export type VideoAngle = 'front' | 'side' | 'back';
+export type VideoScene = 'indoor' | 'outdoor' | 'runway' | 'solid';
+
 export interface VideoTask {
   id: string;
   clothingImg: ImageItem;
@@ -111,6 +115,13 @@ export interface VideoTask {
   videoUrl: string | null;
   error: string | null;
   createdAt: number;
+  // 坑位设置
+  position: VideoPosition;
+  angle: VideoAngle;
+  scene: VideoScene;
+  // 关键词
+  keywords: string;
+  customPrompt: string;
 }
 
 export interface VideoSettings {
@@ -118,11 +129,56 @@ export interface VideoSettings {
   duration: number; // 视频时长（秒）
   fps: number; // 帧率
   resolution: string; // 分辨率
+  // 默认坑位设置
+  defaultPosition: VideoPosition;
+  defaultAngle: VideoAngle;
+  defaultScene: VideoScene;
+  // 当前选择（用于 UI）
+  modelPosition: VideoPosition;
+  modelAngle: VideoAngle;
+  scene: VideoScene;
+  // 关键词和提示词
+  prompt: string;
+  keywords: string;
+  customPrompt: string;
 }
+
+export const VIDEO_POSITIONS: { value: VideoPosition; label: string }[] = [
+  { value: 'left', label: '左侧' },
+  { value: 'center', label: '中间' },
+  { value: 'right', label: '右侧' },
+];
+
+export const VIDEO_ANGLES: { value: VideoAngle; label: string }[] = [
+  { value: 'front', label: '正面' },
+  { value: 'side', label: '侧面' },
+  { value: 'back', label: '背面' },
+];
+
+export const VIDEO_SCENES: { value: VideoScene; label: string; desc: string }[] = [
+  { value: 'indoor', label: '室内', desc: '室内摄影棚' },
+  { value: 'outdoor', label: '室外', desc: '户外自然光' },
+  { value: 'runway', label: 'T 台', desc: '时装秀 T 台' },
+  { value: 'solid', label: '纯色', desc: '纯色背景' },
+];
+
+export const QUICK_KEYWORDS = [
+  '模特转身',
+  '模特走动',
+  '360 度旋转',
+  '展示服装细节',
+  '微风效果',
+  '自然摆动',
+  '优雅姿态',
+  '时尚走秀',
+];
 
 export const DEFAULT_VIDEO_SETTINGS: VideoSettings = {
   pikaApiKey: '',
   duration: 4,
   fps: 24,
   resolution: '1024x576',
+  defaultPosition: 'center',
+  defaultAngle: 'front',
+  defaultScene: 'indoor',
 };

@@ -8,11 +8,18 @@ export async function generateVideo(
   modelImg: { data: string; name: string },
   settings: VideoSettings
 ): Promise<string> {
-  const { pikaApiKey, duration, fps, resolution } = settings;
+  const { pikaApiKey, duration, fps, resolution, position = 'center', angle = 'front', scene = 'indoor', keywords = '', customPrompt = '' } = settings;
 
   if (!pikaApiKey) {
     throw new Error('请先在设置中配置 Pika API Key');
   }
+
+  // 构建完整的提示词，包含坑位和关键词信息
+  const sceneDesc = scene === 'indoor' ? '室内摄影棚' : scene === 'outdoor' ? '户外自然光' : scene === 'runway' ? '时装秀 T 台' : '纯色背景';
+  const positionDesc = position === 'left' ? '左侧' : position === 'right' ? '右侧' : '中间';
+  const angleDesc = angle === 'front' ? '正面' : angle === 'side' ? '侧面' : '背面';
+
+  const fullPrompt = `A fashion model wearing the clothing from the first image, posing naturally. The model should showcase the outfit with subtle movements like turning slightly or adjusting the pose. High quality, realistic, professional fashion photography style.\n\n场景：${sceneDesc}，模特位置：${positionDesc}，展示角度：${angleDesc}${keywords ? `\n关键词：${keywords}` : ''}${customPrompt ? `\n自定义描述：${customPrompt}` : ''}`;
 
   // 创建视频生成任务
   const createResponse = await fetch(`${PIKA_API_BASE}/v1/video/generation`, {
@@ -23,7 +30,7 @@ export async function generateVideo(
     },
     body: JSON.stringify({
       model: 'pika-2',
-      prompt: `A fashion model wearing the clothing from the first image, posing naturally. The model should showcase the outfit with subtle movements like turning slightly or adjusting the pose. High quality, realistic, professional fashion photography style.`,
+      prompt: fullPrompt,
       images: [clothingImg.data, modelImg.data],
       duration: duration,
       fps: fps,
@@ -86,7 +93,13 @@ async function pollVideoStatus(taskId: string, apiKey: string, maxAttempts = 60)
 
 export function createVideoTask(
   clothingImg: { data: string; name: string },
-  modelImg: { data: string; name: string }
+  modelImg: { data: string; name: string },
+  settings?: {
+    position?: VideoPosition;
+    angle?: VideoAngle;
+    scene?: VideoScene;
+    prompt?: string;
+  }
 ): VideoTask {
   return {
     id: generateId(),
@@ -105,5 +118,9 @@ export function createVideoTask(
     videoUrl: null,
     error: null,
     createdAt: Date.now(),
+    position: settings?.position || 'center',
+    angle: settings?.angle || 'front',
+    scene: settings?.scene || 'studio',
+    prompt: settings?.prompt || '',
   };
 }

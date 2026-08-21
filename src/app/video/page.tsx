@@ -420,6 +420,95 @@ export default function VideoPage() {
                   </select>
                 </div>
 
+                {/* 坑位选择 */}
+                <div>
+                  <Label>模特位置</Label>
+                  <div className="grid grid-cols-3 gap-2 mt-1">
+                    {(['left', 'center', 'right'] as const).map((pos) => (
+                      <Button
+                        key={pos}
+                        variant={settings.modelPosition === pos ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() =>
+                          setSettings((prev) => ({ ...prev, modelPosition: pos }))
+                        }
+                      >
+                        {pos === 'left' ? '左侧' : pos === 'center' ? '中间' : '右侧'}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <Label>展示角度</Label>
+                  <div className="grid grid-cols-3 gap-2 mt-1">
+                    {(['front', 'side', 'back'] as const).map((angle) => (
+                      <Button
+                        key={angle}
+                        variant={settings.modelAngle === angle ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() =>
+                          setSettings((prev) => ({ ...prev, modelAngle: angle }))
+                        }
+                      >
+                        {angle === 'front' ? '正面' : angle === 'side' ? '侧面' : '背面'}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <Label>场景</Label>
+                  <select
+                    className="w-full mt-1 p-2 border border-slate-300 rounded"
+                    value={settings.scene}
+                    onChange={(e) =>
+                      setSettings((prev) => ({ ...prev, scene: e.target.value as VideoScene }))
+                    }
+                  >
+                    <option value="indoor">室内</option>
+                    <option value="outdoor">室外</option>
+                    <option value="runway">T 台</option>
+                    <option value="studio">纯色背景</option>
+                  </select>
+                </div>
+
+                {/* 关键词输入 */}
+                <div>
+                  <Label>视频描述关键词</Label>
+                  <textarea
+                    className="w-full mt-1 p-2 border border-slate-300 rounded min-h-[80px]"
+                    value={settings.prompt}
+                    onChange={(e) =>
+                      setSettings((prev) => ({ ...prev, prompt: e.target.value }))
+                    }
+                    placeholder="描述你想要的视频效果，例如：模特转身展示服装、微风效果、时尚优雅..."
+                  />
+                </div>
+
+                <div>
+                  <Label>快速选择</Label>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {['模特转身', '模特走动', '360 度旋转', '微风效果', '时尚展示', '优雅姿态'].map(
+                      (keyword) => (
+                        <Button
+                          key={keyword}
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            setSettings((prev) => ({
+                              ...prev,
+                              prompt: prev.prompt ? `${prev.prompt} ${keyword}` : keyword,
+                            }))
+                          }
+                        >
+                          {keyword}
+                        </Button>
+                      )
+                    )}
+                  </div>
+                </div>
+
                 <Button className="w-full" onClick={handleSaveSettings}>
                   保存设置
                 </Button>
