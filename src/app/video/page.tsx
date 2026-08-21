@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Video, Upload, Play, Download, Settings, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -56,11 +56,13 @@ export default function VideoPage() {
   const [isGenerating, setIsGenerating] = useState(false);
 
   // 初始化加载
-  if (!initialized && typeof window !== 'undefined') {
-    setInitialized(true);
-    setSettings(loadVideoSettings());
-    setTasks(loadVideoTasks());
-  }
+  useEffect(() => {
+    if (!initialized) {
+      setInitialized(true);
+      setSettings(loadVideoSettings());
+      setTasks(loadVideoTasks());
+    }
+  }, [initialized]);
 
   const handleImageUpload = useCallback(
     (type: 'clothing' | 'model', file: File) => {
@@ -91,7 +93,13 @@ export default function VideoPage() {
 
     setIsGenerating(true);
 
-    const task = createVideoTask(clothingImg, modelImg);
+    const task = createVideoTask(clothingImg, modelImg, {
+      modelPosition: settings.modelPosition,
+      modelAngle: settings.modelAngle,
+      scene: settings.scene,
+      keywords: settings.keywords,
+      prompt: settings.prompt,
+    });
     const newTasks = [task, ...tasks];
     setTasks(newTasks);
 
